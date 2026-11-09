@@ -6,15 +6,12 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { INITIAL_CHAMAS } from '../data/initialData.ts';
 import { Chama, Member, ChamaRegistrationApplication } from '../types/index.ts';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const DB_DIR = path.resolve(__dirname, '../../database');
-const DUMP_DIR = path.resolve(__dirname, '../../export_sql_dump');
+const DATA_DIR = path.resolve(process.env.CHAMASMART_DATA_DIR || process.cwd());
+const DB_DIR = path.join(DATA_DIR, 'database');
+export const DUMP_DIR = path.join(DATA_DIR, 'export_sql_dump');
 
 if (!fs.existsSync(DB_DIR)) {
   fs.mkdirSync(DB_DIR, { recursive: true });
