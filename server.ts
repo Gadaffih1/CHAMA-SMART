@@ -269,6 +269,27 @@ async function startServer() {
     }
   });
 
+  // 8b. Download specific SQL dump file directly
+  app.get('/api/db/dumps/:filename', (req, res) => {
+    try {
+      const { filename } = req.params;
+      const DUMP_DIR = path.resolve(__dirname, 'export_sql_dump');
+      const safeFilename = path.basename(filename);
+      const filePath = path.join(DUMP_DIR, safeFilename);
+
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).send('SQL dump file not found');
+      }
+
+      res.setHeader('Content-Type', 'application/sql');
+      res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+      const stream = fs.createReadStream(filePath);
+      stream.pipe(res);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // 9. Reset DB to seed defaults
   app.post('/api/db/reset', (req, res) => {
     try {

@@ -24,6 +24,7 @@ import { PortalType, Role } from '../../types';
 import { MpesaModal } from './MpesaModal';
 import { NewChamaModal } from '../modules/NewChamaModal';
 import { PublicChamaRegistrationModal } from '../modules/PublicChamaRegistrationModal';
+import { SqlDumpModal } from './SqlDumpModal';
 
 export const Header: React.FC = () => {
   const { 
@@ -47,6 +48,7 @@ export const Header: React.FC = () => {
   const [isNewChamaModalOpen, setIsNewChamaModalOpen] = useState(false);
   const [isPublicRegModalOpen, setIsPublicRegModalOpen] = useState(false);
   const [isMpesaModalOpen, setIsMpesaModalOpen] = useState(false);
+  const [isSqlDumpModalOpen, setIsSqlDumpModalOpen] = useState(false);
 
   const handleReset = () => {
     if (confirm('Reset ChamaSmart demo data back to default seed?')) {
@@ -101,8 +103,8 @@ export const Header: React.FC = () => {
               {/* Database SQL Dump Quick Export */}
               <button
                 type="button"
-                onClick={exportSqlDump}
-                title="Export Database SQL Dump to /export_sql_dump folder"
+                onClick={() => setIsSqlDumpModalOpen(true)}
+                title="Download Database SQL Dump (.sql)"
                 className="py-1.5 px-2 sm:px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs rounded-xl shadow-2xs transition flex items-center gap-1 cursor-pointer shrink-0"
               >
                 <Database className="w-3.5 h-3.5 text-amber-600 shrink-0" />
@@ -327,6 +329,12 @@ export const Header: React.FC = () => {
       <PublicChamaRegistrationModal
         isOpen={isPublicRegModalOpen}
         onClose={() => setIsPublicRegModalOpen(false)}
+      />
+
+      {/* SQL Dump Export & Download Modal */}
+      <SqlDumpModal
+        isOpen={isSqlDumpModalOpen}
+        onClose={() => setIsSqlDumpModalOpen(false)}
       />
     </>
   );

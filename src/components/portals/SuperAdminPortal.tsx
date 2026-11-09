@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useChama } from '../../context/ChamaContext';
 import { NewChamaModal } from '../modules/NewChamaModal';
+import { SqlDumpModal } from '../common/SqlDumpModal';
 
 interface DumpFileInfo {
   filename: string;
@@ -52,6 +53,7 @@ export const SuperAdminPortal: React.FC = () => {
   } = useChama();
 
   const [isNewChamaOpen, setIsNewChamaOpen] = useState(false);
+  const [isSqlDumpModalOpen, setIsSqlDumpModalOpen] = useState(false);
   const [adminTab, setAdminTab] = useState<'applications' | 'tenants' | 'tiers' | 'database'>('applications');
   const [adminFeedback, setAdminFeedback] = useState<string>('');
   const [dumpFiles, setDumpFiles] = useState<DumpFileInfo[]>([]);
@@ -150,12 +152,11 @@ export const SuperAdminPortal: React.FC = () => {
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={handleExportDump}
-              disabled={isExporting || isDbSyncing}
-              className="py-3 px-4 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-950/40 border border-amber-300 flex items-center gap-2 transition cursor-pointer self-start md:self-auto shrink-0 disabled:opacity-60"
+              onClick={() => setIsSqlDumpModalOpen(true)}
+              className="py-3 px-4 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-950/40 border border-amber-300 flex items-center gap-2 transition cursor-pointer self-start md:self-auto shrink-0"
             >
-              <Download className={`w-4 h-4 ${isExporting ? 'animate-bounce' : ''}`} />
-              <span>{isExporting ? 'Exporting SQL...' : 'Export SQL Dump'}</span>
+              <Download className="w-4 h-4 text-slate-950" />
+              <span>Download SQL Dump</span>
             </button>
 
             <button
@@ -766,6 +767,12 @@ CREATE TABLE IF NOT EXISTS registration_applications (
       <NewChamaModal
         isOpen={isNewChamaOpen}
         onClose={() => setIsNewChamaOpen(false)}
+      />
+
+      {/* SQL Dump Modal */}
+      <SqlDumpModal
+        isOpen={isSqlDumpModalOpen}
+        onClose={() => setIsSqlDumpModalOpen(false)}
       />
     </div>
   );

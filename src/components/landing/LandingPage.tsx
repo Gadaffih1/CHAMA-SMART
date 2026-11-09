@@ -20,13 +20,16 @@ import {
   EyeOff, 
   Crown, 
   Check, 
-  AlertCircle 
+  AlertCircle,
+  Database,
+  Download
 } from 'lucide-react';
 import { useChama } from '../../context/ChamaContext';
 import { PublicChamaRegistrationModal } from '../modules/PublicChamaRegistrationModal';
+import { SqlDumpModal } from '../common/SqlDumpModal';
 
 export const LandingPage: React.FC = () => {
-  const { loginMember, loginSuperAdmin } = useChama();
+  const { loginMember, loginSuperAdmin, exportSqlDump } = useChama();
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('••••');
@@ -41,6 +44,9 @@ export const LandingPage: React.FC = () => {
 
   // Public Chama Registration Modal
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+
+  // Downloadable SQL Dump Modal
+  const [showSqlDumpModal, setShowSqlDumpModal] = useState(false);
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,6 +117,17 @@ export const LandingPage: React.FC = () => {
               <a href="#governance" className="hover:text-amber-300 transition">Security & Governance</a>
             </div>
 
+            {/* Download SQL Dump Button */}
+            <button
+              type="button"
+              onClick={() => setShowSqlDumpModal(true)}
+              className="py-1.5 px-3 sm:py-2 sm:px-3 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-bold text-xs rounded-xl border border-amber-500/40 transition flex items-center gap-1.5 cursor-pointer shrink-0"
+              title="Download full SQL database dump file (.sql)"
+            >
+              <Database className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+              <span>SQL Dump</span>
+            </button>
+
             {/* Public Chama Registration Button */}
             <button
               type="button"
@@ -162,6 +179,17 @@ export const LandingPage: React.FC = () => {
                   <span>Register a New Chama</span>
                   <ArrowRight className="w-4 h-4 text-slate-950" />
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowSqlDumpModal(true)}
+                  className="py-3 px-4 sm:px-5 bg-gradient-to-r from-rose-950/90 to-amber-950/90 hover:from-rose-900 hover:to-amber-900 text-amber-300 font-bold text-xs rounded-xl shadow-md border border-amber-400/40 flex items-center gap-2 transition cursor-pointer"
+                  title="Download complete database SQL dump (.sql)"
+                >
+                  <Download className="w-4 h-4 text-amber-400" />
+                  <span>Download SQL Dump</span>
+                </button>
+
                 <a
                   href="#login-box"
                   className="py-3 px-5 text-rose-200 hover:text-white bg-[#1b0918] hover:bg-rose-950/60 border border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
@@ -545,6 +573,12 @@ export const LandingPage: React.FC = () => {
       <PublicChamaRegistrationModal
         isOpen={showRegisterModal}
         onClose={() => setShowRegisterModal(false)}
+      />
+
+      {/* Downloadable SQL Dump Modal */}
+      <SqlDumpModal
+        isOpen={showSqlDumpModal}
+        onClose={() => setShowSqlDumpModal(false)}
       />
     </div>
   );
