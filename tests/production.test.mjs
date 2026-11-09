@@ -41,6 +41,10 @@ test('production server serves the built app and database API', { timeout: 30000
     assert.equal(response.status, 200);
     assert.ok((await response.json()).length > 0);
 
+    const health = await fetch(`${base}/api/health`);
+    assert.equal(health.status, 200);
+    assert.deepEqual(await health.json(), { status: 'ok', database: 'sqlite' });
+
     const home = await fetch(base);
     assert.equal(home.status, 200);
     const html = await home.text();

@@ -19,6 +19,16 @@ async function startServer() {
   // Initialize DB and default seeds
   initDatabase();
 
+  app.get('/api/health', (_req, res) => {
+    try {
+      db.prepare('SELECT 1').get();
+      res.json({ status: 'ok', database: 'sqlite' });
+    } catch (error) {
+      console.error('Database health check failed:', error);
+      res.status(503).json({ status: 'error', database: 'sqlite' });
+    }
+  });
+
   // ----------------------------------------------------
   // REST DATABASE API ENDPOINTS (Strict Server Storage)
   // ----------------------------------------------------
