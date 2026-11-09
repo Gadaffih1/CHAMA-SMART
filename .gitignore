@@ -1,6 +1,9 @@
 node_modules/
 build/
 dist/
+dist-server/
+database/
+export_sql_dump/
 coverage/
 .DS_Store
 *.log

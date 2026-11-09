@@ -4,14 +4,11 @@
  */
 
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
-import { db, initDatabase, generateSqlDump } from './src/server/db.ts';
+import { db, initDatabase, generateSqlDump, DUMP_DIR } from './src/server/db.ts';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const APP_ROOT = process.cwd();
 
 async function startServer() {
   const app = express();
@@ -242,7 +239,6 @@ async function startServer() {
   // 8. List all available dumps in export_sql_dump folder
   app.get('/api/db/dumps', (req, res) => {
     try {
-      const DUMP_DIR = path.resolve(__dirname, 'export_sql_dump');
       if (!fs.existsSync(DUMP_DIR)) {
         return res.json([]);
       }
@@ -279,17 +275,29 @@ async function startServer() {
     }
   });
 
-  // Mount Vite development middlewares
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    appType: 'spa',
-  });
-
-  app.use(vite.middlewares);
+  if (process.env.NODE_ENV === 'production') {
+    const distDir = path.join(APP_ROOT, 'dist');
+    const indexPath = path.join(distDir, 'index.html');
+    if (!fs.existsSync(indexPath)) {
+      throw new Error(`Production build not found at ${indexPath}; run npm run build first`);
+    }
+    app.use(express.static(distDir));
+    app.get('*', (_req, res) => res.sendFile(indexPath));
+  } else {
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  }
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`ChamaSmart Full-Stack Database Server active on http://0.0.0.0:${PORT}`);
   });
 }
 
-startServer();
+startServer().catch(error => {
+  console.error('Failed to start ChamaSmart server:', error);
+  process.exitCode = 1;
+});
