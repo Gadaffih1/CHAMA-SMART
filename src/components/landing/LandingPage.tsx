@@ -73,7 +73,7 @@ export const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-green-50 text-green-950 selection:bg-green-300 selection:text-green-950 w-full max-w-full overflow-x-hidden">
+    <div id="landing-page" className="min-h-screen flex flex-col bg-green-50 text-green-950 selection:bg-green-300 selection:text-green-950 w-full max-w-full overflow-x-hidden">
       {/* Top Navigation */}
       <nav className="border-b border-green-200 bg-white/90 backdrop-blur-md sticky top-0 z-40 w-full">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
@@ -87,7 +87,7 @@ export const LandingPage: React.FC = () => {
                   ChamaSmart
                 </span>
                 <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-full bg-green-100 text-green-800 border border-green-300">
-                  Green
+                  Gold
                 </span>
               </div>
               <p className="hidden sm:block text-[10px] text-green-800/70 font-medium">SAVINGS • LENDING • INVESTMENT</p>
@@ -104,7 +104,7 @@ export const LandingPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowRegisterModal(true)}
-              className="py-1.5 px-3 sm:py-2 sm:px-3.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-black text-xs rounded-xl shadow-md border border-green-500 transition flex items-center gap-1.5 cursor-pointer shrink-0"
+              className="landing-3d-button py-1.5 px-3 sm:py-2 sm:px-3.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-black text-xs rounded-xl shadow-md border border-green-500 transition flex items-center gap-1.5 cursor-pointer shrink-0"
             >
               <Sparkles className="w-3.5 h-3.5 text-white shrink-0" />
               <span>Register Chama</span>
@@ -137,7 +137,7 @@ export const LandingPage: React.FC = () => {
               </h1>
 
               <p className="text-sm sm:text-base lg:text-lg text-green-900/80 max-w-xl leading-relaxed">
-                A smarter, greener standard for managing your chama savings, weekly table-banking loans, group land investments, and tamper-proof financial records.
+                A brighter standard for managing your chama savings, weekly table-banking loans, group land investments, and tamper-proof financial records.
               </p>
 
               {/* Action Buttons in Hero */}
@@ -145,7 +145,7 @@ export const LandingPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowRegisterModal(true)}
-                  className="py-3 px-5 sm:px-6 bg-gradient-to-r from-green-600 via-emerald-600 to-green-700 hover:from-green-500 hover:to-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-green-300/70 border-2 border-green-400 flex items-center gap-2 transition cursor-pointer"
+                  className="landing-3d-button py-3 px-5 sm:px-6 bg-gradient-to-r from-green-600 via-emerald-600 to-green-700 hover:from-green-500 hover:to-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-green-300/70 border-2 border-green-400 flex items-center gap-2 transition cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4 text-white" />
                   <span>Register a New Chama</span>
@@ -199,7 +199,7 @@ export const LandingPage: React.FC = () => {
             {/* Right: Prominent Member Login Card */}
             <div id="login-box" className="lg:col-span-5">
               <div className="bg-white border-2 border-green-300 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-green-200/70 relative overflow-hidden">
-                {/* Green rim top accent */}
+                {/* Golden rim top accent */}
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-green-500 via-lime-400 to-emerald-500"></div>
 
                 <div className="flex items-center justify-between pb-4 border-b border-green-200">
@@ -265,7 +265,7 @@ export const LandingPage: React.FC = () => {
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full py-3 bg-gradient-to-r from-green-600 via-emerald-600 to-green-700 hover:from-green-500 hover:via-emerald-500 hover:to-green-600 disabled:opacity-50 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-green-300/70 flex items-center justify-center gap-2 transition cursor-pointer"
+                    className="landing-3d-button w-full py-3 bg-gradient-to-r from-green-600 via-emerald-600 to-green-700 hover:from-green-500 hover:via-emerald-500 hover:to-green-600 disabled:opacity-50 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-green-300/70 flex items-center justify-center gap-2 transition cursor-pointer"
                   >
                     <span>{isLoading ? 'Verifying Account...' : 'LOGIN TO MY CHAMA'}</span>
                     <ArrowRight className="w-4 h-4 text-white" />
@@ -355,7 +355,7 @@ export const LandingPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Crown className="w-4 h-4 text-green-600" />
-            <span className="font-bold text-green-950">ChamaSmart © 2026</span>
+            <span className="font-bold text-green-950">ChamaSmart Gold Edition © 2026</span>
             <span>•</span>
             <span>All rights reserved</span>
             <span>•</span>
@@ -434,7 +434,7 @@ export const LandingPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs transition"
+                  className="landing-3d-button px-4 py-1.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs transition"
                 >
                   Authorize Console
                 </button>
