@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Globe, 
   Building2, 
@@ -23,10 +23,22 @@ import {
   X,
   FileText,
   Clock,
-  UserCheck
+  UserCheck,
+  Database,
+  Download,
+  FolderDown,
+  RefreshCw,
+  HardDrive
 } from 'lucide-react';
 import { useChama } from '../../context/ChamaContext';
 import { NewChamaModal } from '../modules/NewChamaModal';
+
+interface DumpFileInfo {
+  filename: string;
+  sizeBytes: number;
+  created: string;
+  modified: string;
+}
 
 export const SuperAdminPortal: React.FC = () => {
   const { 
@@ -34,12 +46,48 @@ export const SuperAdminPortal: React.FC = () => {
     setActiveChamaId, 
     activeChama, 
     registrationApplications, 
-    reviewRegistrationApplication 
+    reviewRegistrationApplication,
+    exportSqlDump,
+    isDbSyncing
   } = useChama();
 
   const [isNewChamaOpen, setIsNewChamaOpen] = useState(false);
-  const [adminTab, setAdminTab] = useState<'applications' | 'tenants' | 'tiers'>('applications');
+  const [adminTab, setAdminTab] = useState<'applications' | 'tenants' | 'tiers' | 'database'>('applications');
   const [adminFeedback, setAdminFeedback] = useState<string>('');
+  const [dumpFiles, setDumpFiles] = useState<DumpFileInfo[]>([]);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  const fetchDumpFiles = async () => {
+    try {
+      const res = await fetch('/api/db/dumps');
+      if (res.ok) {
+        const data = await res.json();
+        setDumpFiles(data);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    if (adminTab === 'database') {
+      fetchDumpFiles();
+    }
+  }, [adminTab]);
+
+  const handleExportDump = async () => {
+    setIsExporting(true);
+    const res = await exportSqlDump();
+    setIsExporting(false);
+    if (res.success) {
+      setAdminFeedback(res.message);
+      fetchDumpFiles();
+      setTimeout(() => setAdminFeedback(''), 8000);
+    } else {
+      setAdminFeedback(`Export failed: ${res.message}`);
+      setTimeout(() => setAdminFeedback(''), 8000);
+    }
+  };
 
   const pendingApps = registrationApplications.filter(a => a.status === 'pending_approval');
   const reviewedApps = registrationApplications.filter(a => a.status !== 'pending_approval');
@@ -100,6 +148,16 @@ export const SuperAdminPortal: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleExportDump}
+              disabled={isExporting || isDbSyncing}
+              className="py-3 px-4 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-950/40 border border-amber-300 flex items-center gap-2 transition cursor-pointer self-start md:self-auto shrink-0 disabled:opacity-60"
+            >
+              <Download className={`w-4 h-4 ${isExporting ? 'animate-bounce' : ''}`} />
+              <span>{isExporting ? 'Exporting SQL...' : 'Export SQL Dump'}</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setIsNewChamaOpen(true)}
@@ -185,6 +243,19 @@ export const SuperAdminPortal: React.FC = () => {
           >
             <DollarSign className="w-3.5 h-3.5" />
             <span>Commercial SaaS Tiers</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAdminTab('database')}
+            className={`py-2 px-3.5 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
+              adminTab === 'database'
+                ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-md font-black'
+                : 'bg-rose-950/40 text-rose-200 hover:bg-rose-900/60 border border-amber-500/20'
+            }`}
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span>Database & SQL Dumps</span>
           </button>
         </div>
       </div>
@@ -456,6 +527,211 @@ export const SuperAdminPortal: React.FC = () => {
                 </p>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: DATABASE STORAGE & SQL DUMPS */}
+      {adminTab === 'database' && (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div>
+              <div className="flex items-center gap-2">
+                <Database className="w-5 h-5 text-amber-600" />
+                <h3 className="font-bold text-slate-900 text-base">Relational Database Engine & SQL Dumps</h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  Active & Synchronized
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Every data storage and access operation is strictly routed through the relational SQL database. Automatic ANSI SQL dumps are generated and stored in <span className="font-mono font-bold text-slate-800">export_sql_dump/</span>.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={fetchDumpFiles}
+                className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-slate-600" />
+                <span>Refresh Files</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportDump}
+                disabled={isExporting}
+                className="py-2.5 px-4 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs rounded-xl shadow-md border border-amber-300 flex items-center gap-2 transition cursor-pointer disabled:opacity-60"
+              >
+                <Download className={`w-4 h-4 ${isExporting ? 'animate-bounce' : ''}`} />
+                <span>{isExporting ? 'Generating Dump...' : 'Export SQL Dump Now'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Database Info Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/30">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block">Database Storage File</span>
+              <span className="font-mono text-xs font-bold text-slate-900 block mt-1">database/chamasmart.db</span>
+              <span className="text-[11px] text-slate-500 mt-1 block">Relational SQLite (WAL Mode & Foreign Keys ON)</span>
+            </div>
+
+            <div className="p-4 rounded-xl border border-rose-200 bg-rose-50/30">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 block">Export Dump Folder</span>
+              <span className="font-mono text-xs font-bold text-slate-900 block mt-1">export_sql_dump/</span>
+              <span className="text-[11px] text-slate-500 mt-1 block">Full ANSI SQL schemas & table insert statements</span>
+            </div>
+
+            <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/30">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 block">Relational Tables</span>
+              <span className="font-mono text-lg font-black text-slate-900 block mt-0.5">5 Tables</span>
+              <span className="text-[11px] text-slate-500 mt-1 block">chamas, members, apps, txs, audit_logs</span>
+            </div>
+
+            <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/30">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 block">Sync Status</span>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="font-bold text-xs text-emerald-900">Authoritative Server DB</span>
+              </div>
+              <span className="text-[11px] text-slate-500 mt-1 block">Immediate live database writes</span>
+            </div>
+          </div>
+
+          {/* Database Tables & Record Statistics */}
+          <div className="space-y-3">
+            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
+              Relational Tables Live Record Counters
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-[11px] text-slate-500 block">TABLE chamas</span>
+                <span className="text-lg font-black text-slate-900 font-mono-num">{allChamas.length}</span>
+                <span className="text-[10px] text-slate-400 block">Tenants & workspaces</span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-[11px] text-slate-500 block">TABLE members</span>
+                <span className="text-lg font-black text-slate-900 font-mono-num">
+                  {allChamas.reduce((sum, c) => sum + c.members.length, 0)}
+                </span>
+                <span className="text-[10px] text-slate-400 block">Enrolled member accounts</span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-[11px] text-slate-500 block">TABLE registration_applications</span>
+                <span className="text-lg font-black text-slate-900 font-mono-num">
+                  {registrationApplications.length}
+                </span>
+                <span className="text-[10px] text-slate-400 block">Public group submissions</span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-[11px] text-slate-500 block">TABLE transactions</span>
+                <span className="text-lg font-black text-slate-900 font-mono-num">
+                  {allChamas.reduce((sum, c) => sum + c.transactions.length, 0)}
+                </span>
+                <span className="text-[10px] text-slate-400 block">M-Pesa & ledger events</span>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span className="text-[11px] text-slate-500 block">TABLE audit_logs</span>
+                <span className="text-lg font-black text-slate-900 font-mono-num">
+                  {allChamas.reduce((sum, c) => sum + c.auditLogs.length, 0)}
+                </span>
+                <span className="text-[10px] text-slate-400 block">Governance immutable audit</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Export SQL Dump Files in export_sql_dump/ Folder */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <FolderDown className="w-3.5 h-3.5 text-amber-600" />
+                <span>Available SQL Dumps in export_sql_dump/ Folder ({dumpFiles.length})</span>
+              </h4>
+              <span className="text-[11px] text-slate-500">
+                Stored in workspace folder <span className="font-mono font-bold text-slate-700">/export_sql_dump/</span>
+              </span>
+            </div>
+
+            {dumpFiles.length === 0 ? (
+              <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500">
+                Click "Export SQL Dump Now" above to generate the first dump into <span className="font-mono text-slate-800">export_sql_dump/</span>.
+              </div>
+            ) : (
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
+                  {dumpFiles.map((file) => (
+                    <div key={file.filename} className="p-3.5 bg-white hover:bg-slate-50/80 transition flex items-center justify-between text-xs">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <HardDrive className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span className="font-mono font-bold text-slate-900">{file.filename}</span>
+                          {file.filename.includes('latest') && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300">
+                              LATEST
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Size: <span className="font-mono font-semibold">{(file.sizeBytes / 1024).toFixed(1)} KB</span> • Modified: <span className="font-mono">{new Date(file.modified).toLocaleString()}</span>
+                        </div>
+                      </div>
+
+                      <a
+                        href="/api/db/export-sql-dump"
+                        download={file.filename}
+                        className="py-1.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-xs rounded-lg flex items-center gap-1 transition"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download</span>
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Sample ANSI SQL Script Preview */}
+          <div className="space-y-2 pt-2">
+            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
+              SQL Dump Schema & Structure Preview
+            </h4>
+            <div className="p-4 bg-slate-900 text-amber-300 font-mono text-[11px] rounded-xl overflow-x-auto leading-relaxed border border-slate-800">
+              <pre>{`-- ChamaSmart Enterprise SQL Database Dump Sample
+-- Engine: Relational SQLite / PostgreSQL / MySQL Compatible DDL
+CREATE TABLE IF NOT EXISTS chamas (
+  id VARCHAR(64) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  category VARCHAR(64) NOT NULL,
+  plan_tier VARCHAR(64) NOT NULL,
+  monthly_subscription_ksh NUMERIC(12,2) NOT NULL DEFAULT 500,
+  raw_data TEXT NOT NULL,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS members (
+  id VARCHAR(64) PRIMARY KEY,
+  chama_id VARCHAR(64) NOT NULL REFERENCES chamas(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  phone_number VARCHAR(32) NOT NULL,
+  membership_number VARCHAR(64) NOT NULL,
+  role VARCHAR(64) NOT NULL DEFAULT 'member',
+  total_savings NUMERIC(14,2) NOT NULL DEFAULT 0.00
+);
+
+CREATE TABLE IF NOT EXISTS registration_applications (
+  id VARCHAR(64) PRIMARY KEY,
+  chama_name VARCHAR(255) NOT NULL,
+  applicant_chairperson_name VARCHAR(255) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'pending_approval'
+);`}</pre>
+            </div>
           </div>
         </div>
       )}

@@ -99,6 +99,10 @@ interface ChamaContextType {
   
   addMember: (memberData: Omit<Member, 'id' | 'chamaId' | 'totalSavings' | 'sharesCount' | 'activeLoanBalance' | 'creditScore' | 'kycVerified' | 'attendanceRate' | 'status'>) => { success: boolean; message: string };
   
+  // Database SQL Dump & Direct Storage
+  exportSqlDump: () => Promise<{ success: boolean; dumpSql?: string; filename?: string; message: string }>;
+  isDbSyncing: boolean;
+
   resetToDefaults: () => void;
 }
 
@@ -179,15 +183,67 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [currentMemberId, setCurrentMemberId] = useState<string>('mem-5'); // Grace Wanjiku default
   const [currentOfficialRole, setCurrentOfficialRole] = useState<Role>('treasurer');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isDbSyncing, setIsDbSyncing] = useState<boolean>(false);
+  const [dbLoaded, setDbLoaded] = useState<boolean>(false);
 
-  // Persist to local storage
+  // Load authoritative data strictly from server-side database
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchDatabaseState() {
+      try {
+        setIsDbSyncing(true);
+        const [chamasRes, appsRes] = await Promise.all([
+          fetch('/api/db/chamas'),
+          fetch('/api/db/applications'),
+        ]);
+
+        if (chamasRes.ok) {
+          const chamasData = await chamasRes.json();
+          if (isMounted && Array.isArray(chamasData) && chamasData.length > 0) {
+            setAllChamas(chamasData);
+          }
+        }
+
+        if (appsRes.ok) {
+          const appsData = await appsRes.json();
+          if (isMounted && Array.isArray(appsData)) {
+            setRegistrationApplications(appsData);
+          }
+        }
+      } catch (err) {
+        console.warn('Database initialization fetch fallback active:', err);
+      } finally {
+        if (isMounted) {
+          setIsDbSyncing(false);
+          setDbLoaded(true);
+        }
+      }
+    }
+
+    fetchDatabaseState();
+    return () => { isMounted = false; };
+  }, []);
+
+  // Synchronize state mutations to server database
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(allChamas));
     } catch {
-      // Handle storage error if quota exceeded
+      // Handle storage quota error
     }
-  }, [allChamas]);
+
+    if (!dbLoaded) return;
+
+    const timer = setTimeout(() => {
+      fetch('/api/db/chamas/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(allChamas),
+      }).catch(err => console.error('Error synchronizing with database:', err));
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [allChamas, dbLoaded]);
 
   useEffect(() => {
     try {
@@ -1116,6 +1172,13 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setRegistrationApplications(prev => [newApp, ...prev]);
 
+    // Authoritative database storage
+    fetch('/api/db/applications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newApp),
+    }).catch(err => console.error('Error persisting application to DB:', err));
+
     return {
       success: true,
       applicationId,
@@ -1140,6 +1203,17 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             : a
         )
       );
+
+      fetch(`/api/db/applications/${applicationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'rejected',
+          reviewedAt: timestamp,
+          rejectionReason: reason || 'Application criteria incomplete.',
+        }),
+      }).catch(err => console.error('Error updating application rejection in DB:', err));
+
       return { success: true, message: `Application for "${app.chamaName}" was marked as rejected.` };
     }
 
@@ -1238,6 +1312,23 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
 
     setAllChamas(prev => [newChama, ...prev]);
+
+    // Persist new tenant and application update to database
+    fetch(`/api/db/applications/${applicationId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'approved',
+        reviewedAt: timestamp,
+        superAdminNotes: 'Authorized by Platform Super Admin',
+      }),
+    }).catch(err => console.error('Error approving application in DB:', err));
+
+    fetch('/api/db/chamas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newChama),
+    }).catch(err => console.error('Error inserting new chama to DB:', err));
 
     return {
       success: true,
@@ -1431,6 +1522,53 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setRegistrationApplications(INITIAL_REGISTRATION_APPLICATIONS);
     setActiveChamaIdState(INITIAL_CHAMAS[0].id);
     setCurrentMemberId('mem-5');
+    fetch('/api/db/reset', { method: 'POST' }).catch(err => console.error('Error resetting DB:', err));
+  };
+
+  // Export full SQL Dump and trigger client file download
+  const exportSqlDump = async () => {
+    try {
+      setIsDbSyncing(true);
+      const res = await fetch('/api/db/export-sql-dump');
+      if (!res.ok) {
+        throw new Error(`Failed to generate database SQL export (${res.status})`);
+      }
+      
+      const dumpSql = await res.text();
+      const disposition = res.headers.get('Content-Disposition');
+      let filename = 'chamasmart_dump_latest.sql';
+      if (disposition && disposition.indexOf('filename=') !== -1) {
+        const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disposition);
+        if (matches != null && matches[1]) {
+          filename = matches[1].replace(/['"]/g, '');
+        }
+      }
+
+      // Trigger standard browser download
+      const blob = new Blob([dumpSql], { type: 'application/sql' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      setIsDbSyncing(false);
+      return {
+        success: true,
+        dumpSql,
+        filename,
+        message: `Database exported successfully! Saved to export_sql_dump/${filename} and downloaded to your device.`,
+      };
+    } catch (err: any) {
+      setIsDbSyncing(false);
+      return {
+        success: false,
+        message: err.message || 'Error exporting database SQL dump',
+      };
+    }
   };
 
   return (
@@ -1473,6 +1611,8 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         castVote,
         addInvestmentAsset,
         addMember,
+        exportSqlDump,
+        isDbSyncing,
         resetToDefaults,
       }}
     >

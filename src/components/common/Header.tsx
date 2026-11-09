@@ -16,7 +16,8 @@ import {
   Check, 
   Crown, 
   LogOut, 
-  Sparkles 
+  Sparkles,
+  Database
 } from 'lucide-react';
 import { useChama } from '../../context/ChamaContext';
 import { PortalType, Role } from '../../types';
@@ -38,6 +39,7 @@ export const Header: React.FC = () => {
     setActivePortal, 
     setCurrentOfficialRole, 
     logout, 
+    exportSqlDump,
     resetToDefaults 
   } = useChama();
 
@@ -95,6 +97,17 @@ export const Header: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Database SQL Dump Quick Export */}
+              <button
+                type="button"
+                onClick={exportSqlDump}
+                title="Export Database SQL Dump to /export_sql_dump folder"
+                className="py-1.5 px-2 sm:px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs rounded-xl shadow-2xs transition flex items-center gap-1 cursor-pointer shrink-0"
+              >
+                <Database className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span className="hidden sm:inline text-[11px]">SQL Dump</span>
+              </button>
 
               {/* M-Pesa Quick Pay Button with Golden trim */}
               <button
