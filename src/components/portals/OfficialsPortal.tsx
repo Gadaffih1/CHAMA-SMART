@@ -43,7 +43,8 @@ export const OfficialsPortal: React.FC = () => {
     transferFunds, 
     advanceMerryGoRound,
     addMember,
-    assignMemberRole
+    assignMemberRole,
+    resetMemberPassword,
   } = useChama();
 
   const [activeTab, setActiveTab] = useState<
@@ -60,11 +61,14 @@ export const OfficialsPortal: React.FC = () => {
   // Add Member State (Secretary authority)
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [newMemberName, setNewMemberName] = useState('');
-  const [newMemberPhone, setNewMemberPhone] = useState('+2547');
+  const [newMemberPhone, setNewMemberPhone] = useState('+254');
+  const [newMemberPassword, setNewMemberPassword] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberKin, setNewMemberKin] = useState('');
   const [newMemberKinRel, setNewMemberKinRel] = useState('Spouse');
-  const [newMemberKinPhone, setNewMemberKinPhone] = useState('+2547');
+  const [newMemberKinPhone, setNewMemberKinPhone] = useState('+254');
+  const [passwordResetMember, setPasswordResetMember] = useState<{ id: string; name: string } | null>(null);
+  const [resetPassword, setResetPassword] = useState('');
 
   // Assign Role State (Chairperson authority)
   const [roleModalMember, setRoleModalMember] = useState<{ id: string; name: string; currentRole: string } | null>(null);
@@ -90,19 +94,20 @@ export const OfficialsPortal: React.FC = () => {
     setTimeout(() => setFeedbackMsg(''), 4000);
   };
 
-  const handleCreateMember = (e: React.FormEvent) => {
+  const handleCreateMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMemberName.trim()) return;
 
     // Secretary or Chairperson authority
     const nextNum = `CS-${activeChama.name.substring(0, 3).toUpperCase()}-${String(activeChama.members.length + 1).padStart(3, '0')}`;
-    const res = addMember({
+    const res = await addMember({
       name: newMemberName.trim(),
       phoneNumber: newMemberPhone,
-      email: newMemberEmail || `${newMemberName.toLowerCase().replace(/\s+/g, '.')}@gmail.com`,
+      email: newMemberEmail.trim(),
       membershipNumber: nextNum,
       joinedDate: new Date().toISOString().split('T')[0],
       role: 'member',
+      password: newMemberPassword,
       nextOfKin: {
         name: newMemberKin || 'Family Contact',
         relationship: newMemberKinRel,
@@ -113,11 +118,29 @@ export const OfficialsPortal: React.FC = () => {
     if (res.success) {
       setShowAddMemberModal(false);
       setNewMemberName('');
+      setNewMemberPhone('+254');
+      setNewMemberPassword('');
+      setNewMemberEmail('');
+      setNewMemberKin('');
+      setNewMemberKinPhone('+254');
       setFeedbackMsg(res.message);
     } else {
       alert(res.message);
     }
     setTimeout(() => setFeedbackMsg(''), 4500);
+  };
+
+  const handleResetMemberPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordResetMember) return;
+    const res = await resetMemberPassword(passwordResetMember.id, resetPassword);
+    if (res.success) {
+      setPasswordResetMember(null);
+      setResetPassword('');
+      setFeedbackMsg(res.message);
+    } else {
+      alert(res.message);
+    }
   };
 
   const handleAssignRoleSubmit = (e: React.FormEvent) => {
@@ -337,6 +360,7 @@ export const OfficialsPortal: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowAddMemberModal(true)}
+                disabled={!['secretary', 'chairperson'].includes(currentUser?.role || '')}
                 className="py-2 px-3.5 bg-gradient-to-r from-rose-600 via-pink-600 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white font-bold text-xs rounded-xl shadow-xs border border-amber-300/40 flex items-center gap-1.5 transition cursor-pointer"
                 title="Secretary Member Account Onboarding"
               >
@@ -413,17 +437,33 @@ export const OfficialsPortal: React.FC = () => {
                         </span>
                       </td>
                       <td className="py-3 px-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setRoleModalMember({ id: mem.id, name: mem.name, currentRole: mem.role });
-                            setSelectedNewRole(mem.role);
-                          }}
-                          className="py-1 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-200 rounded-lg text-[11px] font-bold transition cursor-pointer"
-                          title="Chairperson assigns role"
-                        >
-                          Reassign Role
-                        </button>
+                        <div className="flex justify-end gap-1.5">
+                          {['secretary', 'chairperson'].includes(currentUser?.role || '') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPasswordResetMember({ id: mem.id, name: mem.name });
+                                setResetPassword('');
+                              }}
+                              className="py-1 px-2.5 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-lg text-[11px] font-bold transition cursor-pointer"
+                            >
+                              Set / Reset Password
+                            </button>
+                          )}
+                          {currentUser?.role === 'chairperson' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRoleModalMember({ id: mem.id, name: mem.name, currentRole: mem.role });
+                                setSelectedNewRole(mem.role);
+                              }}
+                              className="py-1 px-2.5 bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-200 rounded-lg text-[11px] font-bold transition cursor-pointer"
+                              title="Chairperson assigns role"
+                            >
+                              Reassign Role
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -773,6 +813,20 @@ export const OfficialsPortal: React.FC = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Initial Password *</label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  value={newMemberPassword}
+                  onChange={(e) => setNewMemberPassword(e.target.value)}
+                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">At least 8 characters. The password is stored as a salted hash.</p>
+              </div>
+
               <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200 text-xs space-y-2">
                 <span className="font-bold text-amber-950 block">Next of Kin Details</span>
                 <div className="grid grid-cols-2 gap-2">
@@ -817,6 +871,31 @@ export const OfficialsPortal: React.FC = () => {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {passwordResetMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+          <form onSubmit={handleResetMemberPassword} className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4">
+            <div>
+              <h3 className="font-bold text-slate-900">Set / Reset Password</h3>
+              <p className="text-xs text-slate-500 mt-1">For {passwordResetMember.name}</p>
+            </div>
+            <input
+              type="password"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              value={resetPassword}
+              onChange={event => setResetPassword(event.target.value)}
+              placeholder="New password (at least 8 characters)"
+              className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setPasswordResetMember(null)} className="px-4 py-2 text-xs text-slate-600 rounded-xl hover:bg-slate-100">Cancel</button>
+              <button type="submit" className="px-4 py-2 text-xs font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700">Save Password</button>
+            </div>
+          </form>
         </div>
       )}
 

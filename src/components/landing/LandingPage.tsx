@@ -42,7 +42,7 @@ export const LandingPage: React.FC = () => {
   // Public Chama Registration Modal
   const [showRegisterModal, setShowRegisterModal] = useState(false);
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim()) {
       setLoginError('Please enter your Phone Number or Member ID.');
@@ -52,23 +52,32 @@ export const LandingPage: React.FC = () => {
     setIsLoading(true);
     setLoginError('');
 
-    setTimeout(() => {
-      const res = loginMember(identifier, password);
+    try {
+      const res = await loginMember(identifier, password);
       setIsLoading(false);
       if (!res.success) {
         setLoginError(res.message);
       }
-    }, 400);
+    } catch (error) {
+      console.error('Unable to log in:', error);
+      setIsLoading(false);
+      setLoginError('Unable to verify your account. Please try again.');
+    }
   };
 
-  const handleOperatorSubmit = (e: React.FormEvent) => {
+  const handleOperatorSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setOperatorError('');
-    const res = loginSuperAdmin(operatorPin);
-    if (!res.success) {
-      setOperatorError(res.message);
-    } else {
-      setShowOperatorModal(false);
+    try {
+      const res = await loginSuperAdmin(operatorPin);
+      if (!res.success) {
+        setOperatorError(res.message);
+      } else {
+        setShowOperatorModal(false);
+      }
+    } catch (error) {
+      console.error('Unable to authenticate operator:', error);
+      setOperatorError('Unable to verify the operator password. Please try again.');
     }
   };
 

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Building2, 
   X, 
@@ -22,7 +22,7 @@ interface NewChamaModalProps {
 }
 
 export const NewChamaModal: React.FC<NewChamaModalProps> = ({ isOpen, onClose }) => {
-  const { createChama } = useChama();
+  const { createChama, categoryOptions } = useChama();
 
   const [name, setName] = useState<string>('');
   const [tagline, setTagline] = useState<string>('Together we save, together we prosper');
@@ -31,6 +31,10 @@ export const NewChamaModal: React.FC<NewChamaModalProps> = ({ isOpen, onClose })
   const [planTier, setPlanTier] = useState<'Starter' | 'Basic' | 'Growth' | 'Professional' | 'Enterprise'>('Basic');
   const [mpesaPaybill, setMpesaPaybill] = useState<string>('Till: 789123');
   const [loanModel, setLoanModel] = useState<string>('both'); // weekly & monthly
+
+  useEffect(() => {
+    if (!categoryOptions.includes(category) && categoryOptions[0]) setCategory(categoryOptions[0]);
+  }, [category, categoryOptions]);
 
   if (!isOpen) return null;
 
@@ -113,11 +117,9 @@ export const NewChamaModal: React.FC<NewChamaModalProps> = ({ isOpen, onClose })
                 onChange={(e) => setCategory(e.target.value as ChamaCategory)}
                 className="w-full text-xs bg-slate-50 border border-rose-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-rose-400 font-medium"
               >
-                <option value="table_banking">Table Banking</option>
-                <option value="weekly_savings">Weekly Savings Chama</option>
-                <option value="investment">Investment Club</option>
-                <option value="merry_go_round">Merry-Go-Round</option>
-                <option value="welfare_group">Welfare / Benevolent</option>
+                {categoryOptions.map(option => (
+                  <option key={option} value={option}>{option.replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase())}</option>
+                ))}
               </select>
             </div>
 

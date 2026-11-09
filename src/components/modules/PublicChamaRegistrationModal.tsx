@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Building2, 
   X, 
@@ -27,7 +27,7 @@ interface PublicChamaRegistrationModalProps {
 }
 
 export const PublicChamaRegistrationModal: React.FC<PublicChamaRegistrationModalProps> = ({ isOpen, onClose }) => {
-  const { submitRegistrationApplication } = useChama();
+  const { submitRegistrationApplication, categoryOptions } = useChama();
 
   const [chamaName, setChamaName] = useState('');
   const [category, setCategory] = useState<ChamaCategory>('table_banking');
@@ -35,13 +35,17 @@ export const PublicChamaRegistrationModal: React.FC<PublicChamaRegistrationModal
   const [county, setCounty] = useState('Nairobi City County');
   const [registrationNumber, setRegistrationNumber] = useState('');
   const [applicantChairpersonName, setApplicantChairpersonName] = useState('');
-  const [applicantPhone, setApplicantPhone] = useState('+2547');
+  const [applicantPhone, setApplicantPhone] = useState('+254');
   const [applicantEmail, setApplicantEmail] = useState('');
   const [initialMemberCount, setInitialMemberCount] = useState(15);
   const [planTier, setPlanTier] = useState<'Starter' | 'Basic' | 'Growth' | 'Professional' | 'Enterprise'>('Basic');
 
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedAppId, setSubmittedAppId] = useState('');
+
+  useEffect(() => {
+    if (!categoryOptions.includes(category) && categoryOptions[0]) setCategory(categoryOptions[0]);
+  }, [category, categoryOptions]);
 
   if (!isOpen) return null;
 
@@ -73,7 +77,7 @@ export const PublicChamaRegistrationModal: React.FC<PublicChamaRegistrationModal
     setIsSubmitted(false);
     setChamaName('');
     setApplicantChairpersonName('');
-    setApplicantPhone('+2547');
+    setApplicantPhone('+254');
     setApplicantEmail('');
     setRegistrationNumber('');
     onClose();
@@ -202,11 +206,9 @@ export const PublicChamaRegistrationModal: React.FC<PublicChamaRegistrationModal
                     onChange={(e) => setCategory(e.target.value as ChamaCategory)}
                     className="w-full text-xs px-3 py-2.5 bg-[#120511] border border-amber-500/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
                   >
-                    <option value="table_banking">Table Banking</option>
-                    <option value="weekly_savings">Weekly Savings Chama</option>
-                    <option value="investment">Investment & Property Club</option>
-                    <option value="merry_go_round">Merry-Go-Round Payout Wheel</option>
-                    <option value="welfare_group">Welfare & Benevolent Society</option>
+                    {categoryOptions.map(option => (
+                      <option key={option} value={option}>{option.replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase())}</option>
+                    ))}
                   </select>
                 </div>
 
