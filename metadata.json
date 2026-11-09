@@ -1,0 +1,6 @@
+{
+  "name": "ChamaSmart - Digital Chama & Table Banking Platform",
+  "description": "Comprehensive multi-tenant financial management and governance platform for chamas, table-banking groups, welfare associations, and investment clubs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
