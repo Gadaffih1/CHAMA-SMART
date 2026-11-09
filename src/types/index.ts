@@ -13,12 +13,15 @@ export type Role =
 
 export type PortalType = 'member' | 'officials' | 'super_admin';
 
-export type ChamaCategory = 
-  | 'weekly_savings' 
-  | 'table_banking' 
-  | 'investment' 
-  | 'merry_go_round' 
-  | 'welfare_group';
+export type ChamaCategory = string;
+
+export const DEFAULT_CHAMA_CATEGORIES: ChamaCategory[] = [
+  'weekly_savings',
+  'table_banking',
+  'investment',
+  'merry_go_round',
+  'welfare_group',
+];
 
 export type RegistrationStatus = 'pending_approval' | 'approved' | 'rejected';
 
@@ -65,6 +68,7 @@ export interface Member {
   name: string;
   phoneNumber: string;
   email: string;
+  passwordHash?: string;
   membershipNumber: string;
   joinedDate: string;
   role: Role;

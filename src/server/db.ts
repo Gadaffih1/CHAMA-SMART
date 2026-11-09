@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { INITIAL_CHAMAS } from '../data/initialData.ts';
-import { Chama, Member, ChamaRegistrationApplication } from '../types/index.ts';
+import { Chama, Member, ChamaRegistrationApplication, DEFAULT_CHAMA_CATEGORIES } from '../types/index.ts';
 
 const DATA_DIR = path.resolve(process.env.CHAMASMART_DATA_DIR || process.cwd());
 const DB_DIR = path.join(DATA_DIR, 'database');
@@ -88,6 +88,11 @@ export function initDatabase() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS transactions (
       id TEXT PRIMARY KEY,
       chama_id TEXT NOT NULL,
@@ -119,6 +124,10 @@ export function initDatabase() {
       FOREIGN KEY (chama_id) REFERENCES chamas (id) ON DELETE CASCADE
     );
   `);
+
+  db.prepare(`
+    INSERT OR IGNORE INTO system_settings (key, value) VALUES ('chama_categories', ?)
+  `).run(JSON.stringify(DEFAULT_CHAMA_CATEGORIES));
 
   // Seed default chamas if empty
   const countStmt = db.prepare('SELECT COUNT(*) as cnt FROM chamas');
@@ -350,6 +359,12 @@ export function generateSqlDump(): { filePath: string; sqlContent: string; stats
   sql += `  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n`;
   sql += `);\n\n`;
 
+  sql += `-- Table: system_settings\n`;
+  sql += `CREATE TABLE IF NOT EXISTS system_settings (\n`;
+  sql += `  key VARCHAR(128) PRIMARY KEY,\n`;
+  sql += `  value TEXT NOT NULL\n`;
+  sql += `);\n\n`;
+
   sql += `-- Table: transactions\n`;
   sql += `CREATE TABLE IF NOT EXISTS transactions (\n`;
   sql += `  id VARCHAR(64) PRIMARY KEY,\n`;
@@ -410,6 +425,14 @@ export function generateSqlDump(): { filePath: string; sqlContent: string; stats
     const chairEsc = (a.applicant_chairperson_name || '').replace(/'/g, "''");
     sql += `INSERT INTO registration_applications (id, chama_name, category, tagline, county, country, registration_number, applicant_chairperson_name, applicant_phone, applicant_email, initial_member_count, plan_tier, status, submitted_at)\n`;
     sql += `VALUES ('${a.id}', '${nameEsc}', '${a.category}', '${tagEsc}', '${a.county}', '${a.country}', '${a.registration_number || ''}', '${chairEsc}', '${a.applicant_phone}', '${a.applicant_email || ''}', ${a.initial_member_count}, '${a.plan_tier}', '${a.status}', '${a.submitted_at}');\n`;
+  }
+  sql += `\n`;
+
+  const settings = db.prepare('SELECT key, value FROM system_settings').all() as { key: string; value: string }[];
+  for (const setting of settings) {
+    const keyEscaped = setting.key.replace(/'/g, "''");
+    const valueEscaped = setting.value.replace(/'/g, "''");
+    sql += `INSERT INTO system_settings (key, value) VALUES ('${keyEscaped}', '${valueEscaped}');\n`;
   }
   sql += `\n`;
 

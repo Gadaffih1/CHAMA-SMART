@@ -33,6 +33,7 @@ import {
 import { useChama } from '../../context/ChamaContext';
 import { NewChamaModal } from '../modules/NewChamaModal';
 import { SqlDumpModal } from '../common/SqlDumpModal';
+import { UserAccountManager } from '../modules/UserAccountManager';
 
 interface DumpFileInfo {
   filename: string;
@@ -54,7 +55,7 @@ export const SuperAdminPortal: React.FC = () => {
 
   const [isNewChamaOpen, setIsNewChamaOpen] = useState(false);
   const [isSqlDumpModalOpen, setIsSqlDumpModalOpen] = useState(false);
-  const [adminTab, setAdminTab] = useState<'applications' | 'tenants' | 'tiers' | 'database'>('applications');
+  const [adminTab, setAdminTab] = useState<'applications' | 'tenants' | 'accounts' | 'tiers' | 'database'>('applications');
   const [adminFeedback, setAdminFeedback] = useState<string>('');
   const [dumpFiles, setDumpFiles] = useState<DumpFileInfo[]>([]);
   const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -248,6 +249,19 @@ export const SuperAdminPortal: React.FC = () => {
 
           <button
             type="button"
+            onClick={() => setAdminTab('accounts')}
+            className={`py-2 px-3 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 transition cursor-pointer ${
+              adminTab === 'accounts'
+                ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-md font-black'
+                : 'bg-rose-950/40 text-rose-200 hover:bg-rose-900/60 border border-amber-500/20'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 shrink-0" />
+            <span className="shrink-0">Users & Categories</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setAdminTab('database')}
             className={`py-2 px-3 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 transition cursor-pointer ${
               adminTab === 'database'
@@ -267,6 +281,8 @@ export const SuperAdminPortal: React.FC = () => {
           <span>{adminFeedback}</span>
         </div>
       )}
+
+      {adminTab === 'accounts' && <UserAccountManager />}
 
       {/* TAB: PUBLIC REGISTRATION APPLICATIONS */}
       {adminTab === 'applications' && (
@@ -587,8 +603,8 @@ export const SuperAdminPortal: React.FC = () => {
 
             <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/30">
               <span className="text-[10px] font-bold uppercase tracking-wider text-blue-800 block">Relational Tables</span>
-              <span className="font-mono text-lg font-black text-slate-900 block mt-0.5">5 Tables</span>
-              <span className="text-[11px] text-slate-500 mt-1 block">chamas, members, apps, txs, audit_logs</span>
+              <span className="font-mono text-lg font-black text-slate-900 block mt-0.5">6 Tables</span>
+              <span className="text-[11px] text-slate-500 mt-1 block">chamas, members, apps, txs, audit_logs, system_settings</span>
             </div>
 
             <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/30">

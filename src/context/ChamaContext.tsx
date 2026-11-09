@@ -17,7 +17,8 @@ import {
   InvestmentAsset,
   PaymentMethod,
   InterestMethod,
-  ChamaRegistrationApplication
+  ChamaRegistrationApplication,
+  DEFAULT_CHAMA_CATEGORIES
 } from '../types';
 import { INITIAL_CHAMAS } from '../data/initialData';
 
@@ -39,12 +40,16 @@ interface ChamaContextType {
   setCurrentOfficialRole: (role: Role) => void;
   
   // Auth methods
-  loginMember: (identifier: string, pin?: string) => { success: boolean; message: string };
-  loginSuperAdmin: (securityPin: string) => { success: boolean; message: string };
+  loginMember: (identifier: string, pin?: string) => Promise<{ success: boolean; message: string }>;
+  loginSuperAdmin: (securityPin: string) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
   
   // Registration Applications & Governance
   registrationApplications: ChamaRegistrationApplication[];
+  categoryOptions: string[];
+  addCategory: (category: string) => Promise<{ success: boolean; message: string }>;
+  renameCategory: (oldCategory: string, newCategory: string) => Promise<{ success: boolean; message: string }>;
+  removeCategory: (category: string, replacementCategory?: string) => Promise<{ success: boolean; message: string }>;
   submitRegistrationApplication: (data: Omit<ChamaRegistrationApplication, 'id' | 'status' | 'submittedAt'>) => { success: boolean; applicationId: string; message: string };
   reviewRegistrationApplication: (applicationId: string, action: 'approve' | 'reject', reason?: string) => { success: boolean; newChamaId?: string; message: string };
   assignMemberRole: (memberId: string, newRole: Role) => { success: boolean; message: string };
@@ -97,7 +102,10 @@ interface ChamaContextType {
   
   addInvestmentAsset: (asset: Omit<InvestmentAsset, 'id' | 'chamaId'>) => void;
   
-  addMember: (memberData: Omit<Member, 'id' | 'chamaId' | 'totalSavings' | 'sharesCount' | 'activeLoanBalance' | 'creditScore' | 'kycVerified' | 'attendanceRate' | 'status'>) => { success: boolean; message: string };
+  addMember: (memberData: Omit<Member, 'id' | 'chamaId' | 'totalSavings' | 'sharesCount' | 'activeLoanBalance' | 'creditScore' | 'kycVerified' | 'attendanceRate' | 'status' | 'passwordHash'> & { password: string }, chamaId?: string) => Promise<{ success: boolean; message: string }>;
+  updateMemberAccount: (memberId: string, changes: Pick<Member, 'name' | 'phoneNumber' | 'email' | 'membershipNumber' | 'role' | 'status' | 'nextOfKin'>) => { success: boolean; message: string };
+  deleteMemberAccount: (memberId: string) => { success: boolean; message: string };
+  resetMemberPassword: (memberId: string, password: string) => Promise<{ success: boolean; message: string }>;
   
   // Database SQL Dump & Direct Storage
   exportSqlDump: () => Promise<{ success: boolean; dumpSql?: string; filename?: string; message: string }>;
@@ -108,8 +116,7 @@ interface ChamaContextType {
 
 const ChamaContext = createContext<ChamaContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'chamasmart_data_v1';
-const APPLICATIONS_STORAGE_KEY = 'chamasmart_reg_apps_v1';
+const CATEGORIES_STORAGE_KEY = 'chamasmart_categories_v1';
 
 const INITIAL_REGISTRATION_APPLICATIONS: ChamaRegistrationApplication[] = [
   {
@@ -147,30 +154,21 @@ const INITIAL_REGISTRATION_APPLICATIONS: ChamaRegistrationApplication[] = [
 ];
 
 export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [allChamas, setAllChamas] = useState<Chama[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {
-      // Fallback to initial
-    }
-    return INITIAL_CHAMAS;
-  });
+  const [allChamas, setAllChamas] = useState<Chama[]>(INITIAL_CHAMAS);
 
-  const [registrationApplications, setRegistrationApplications] = useState<ChamaRegistrationApplication[]>(() => {
+  const [registrationApplications, setRegistrationApplications] = useState<ChamaRegistrationApplication[]>(INITIAL_REGISTRATION_APPLICATIONS);
+
+  const [categoryOptions, setCategoryOptions] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem(APPLICATIONS_STORAGE_KEY);
+      const saved = localStorage.getItem(CATEGORIES_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.every(category => typeof category === 'string')) return parsed;
       }
     } catch {
-      // Fallback
+      // Fall back to the built-in categories.
     }
-    return INITIAL_REGISTRATION_APPLICATIONS;
+    return DEFAULT_CHAMA_CATEGORIES;
   });
 
   const [activeChamaId, setActiveChamaIdState] = useState<string>(() => {
@@ -186,72 +184,111 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isDbSyncing, setIsDbSyncing] = useState<boolean>(false);
   const [dbLoaded, setDbLoaded] = useState<boolean>(false);
 
-  // Load authoritative data strictly from server-side database
+  const isAuthenticated = currentUser !== null || isSuperAdminLoggedIn;
+
+  const clearSession = () => {
+    setCurrentUser(null);
+    setIsSuperAdminLoggedIn(false);
+    setActivePortal('member');
+    setDbLoaded(false);
+    setAllChamas(INITIAL_CHAMAS);
+    setRegistrationApplications(INITIAL_REGISTRATION_APPLICATIONS);
+  };
+
+  // Loads the data the signed-in role is allowed to see from the server.
+  const loadAuthorizedData = async (isSuper: boolean): Promise<Chama[]> => {
+    const requests: Promise<Response>[] = [fetch('/api/db/chamas')];
+    if (isSuper) requests.push(fetch('/api/db/applications'));
+    const [chamasRes, appsRes] = await Promise.all(requests);
+    let chamas: Chama[] = [];
+    if (chamasRes.ok) {
+      chamas = await chamasRes.json();
+      if (Array.isArray(chamas)) setAllChamas(chamas);
+    }
+    if (appsRes?.ok) {
+      const appsData = await appsRes.json();
+      if (Array.isArray(appsData)) setRegistrationApplications(appsData);
+    }
+    setDbLoaded(true);
+    return chamas;
+  };
+
+  const enterWorkspace = (member: Member) => {
+    setCurrentUser(member);
+    setCurrentMemberId(member.id);
+    setActiveChamaIdState(member.chamaId);
+    setIsSuperAdminLoggedIn(false);
+    if (['chairperson', 'treasurer', 'secretary', 'loan_officer'].includes(member.role)) {
+      setActivePortal('officials');
+      setCurrentOfficialRole(member.role);
+    } else {
+      setActivePortal('member');
+    }
+  };
+
+  // Public data plus restoration of an existing server session
   useEffect(() => {
     let isMounted = true;
-    async function fetchDatabaseState() {
+    async function bootstrap() {
       try {
         setIsDbSyncing(true);
-        const [chamasRes, appsRes] = await Promise.all([
-          fetch('/api/db/chamas'),
-          fetch('/api/db/applications'),
-        ]);
-
-        if (chamasRes.ok) {
-          const chamasData = await chamasRes.json();
-          if (isMounted && Array.isArray(chamasData) && chamasData.length > 0) {
-            setAllChamas(chamasData);
+        const categoriesRes = await fetch('/api/db/categories');
+        if (categoriesRes.ok) {
+          const categoriesData = await categoriesRes.json();
+          if (isMounted && Array.isArray(categoriesData) && categoriesData.length > 0) {
+            setCategoryOptions(categoriesData);
           }
         }
 
-        if (appsRes.ok) {
-          const appsData = await appsRes.json();
-          if (isMounted && Array.isArray(appsData)) {
-            setRegistrationApplications(appsData);
+        const meRes = await fetch('/api/auth/me');
+        if (meRes.ok && isMounted) {
+          const me = await meRes.json();
+          if (me.role === 'super_admin') {
+            await loadAuthorizedData(true);
+            setIsSuperAdminLoggedIn(true);
+            setActivePortal('super_admin');
+          } else if (me.member) {
+            await loadAuthorizedData(false);
+            enterWorkspace(me.member);
           }
         }
       } catch (err) {
-        console.warn('Database initialization fetch fallback active:', err);
+        console.warn('Database initialization fetch failed:', err);
       } finally {
         if (isMounted) {
           setIsDbSyncing(false);
-          setDbLoaded(true);
         }
       }
     }
 
-    fetchDatabaseState();
+    bootstrap();
     return () => { isMounted = false; };
   }, []);
 
-  // Synchronize state mutations to server database
+  // Synchronize state mutations to server database (server enforces role scope)
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(allChamas));
-    } catch {
-      // Handle storage quota error
-    }
-
-    if (!dbLoaded) return;
+    if (!dbLoaded || !isAuthenticated) return;
 
     const timer = setTimeout(() => {
       fetch('/api/db/chamas/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(allChamas),
+      }).then(response => {
+        if (response.status === 401) clearSession();
       }).catch(err => console.error('Error synchronizing with database:', err));
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [allChamas, dbLoaded]);
+  }, [allChamas, dbLoaded, isAuthenticated]);
 
   useEffect(() => {
     try {
-      localStorage.setItem(APPLICATIONS_STORAGE_KEY, JSON.stringify(registrationApplications));
+      localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(categoryOptions));
     } catch {
       // Handle storage error
     }
-  }, [registrationApplications]);
+  }, [categoryOptions]);
 
   const activeChama = allChamas.find(c => c.id === activeChamaId) || allChamas[0];
 
@@ -274,8 +311,6 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     status: 'active' as const,
   };
 
-  const isAuthenticated = currentUser !== null || isSuperAdminLoggedIn;
-
   // Find all Chamas that the current user is a registered member of
   const userChamas = currentUser
     ? allChamas.filter(c => 
@@ -287,51 +322,42 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       )
     : [activeChama];
 
-  const loginMember = (identifier: string, _pin?: string) => {
-    const clean = identifier.trim().toLowerCase();
-    for (const chama of allChamas) {
-      const found = chama.members.find(
-        m => m.membershipNumber.toLowerCase() === clean ||
-             m.phoneNumber.replace(/\s+/g, '') === clean.replace(/\s+/g, '') ||
-             m.email.toLowerCase() === clean ||
-             m.name.toLowerCase().includes(clean)
-      );
-      if (found) {
-        setCurrentUser(found);
-        setCurrentMemberId(found.id);
-        setActiveChamaIdState(found.chamaId);
-        setIsSuperAdminLoggedIn(false);
-
-        if (['chairperson', 'treasurer', 'secretary', 'loan_officer'].includes(found.role)) {
-          setActivePortal('officials');
-          setCurrentOfficialRole(found.role);
-        } else {
-          setActivePortal('member');
-        }
-
-        return { success: true, message: `Karibu ${found.name}! Logged into ${chama.name}` };
-      }
+  const loginMember = async (identifier: string, pin?: string) => {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, password: pin || '' }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return { success: false, message: body.error || 'Unable to sign in. Please try again.' };
     }
-    return { 
-      success: false, 
-      message: 'Credentials not recognized. Please check your phone number or membership number.' 
-    };
+    const chamas = await loadAuthorizedData(false);
+    const chamaName = chamas.find(chama => chama.id === body.member.chamaId)?.name || 'your Chama';
+    enterWorkspace(body.member);
+    return { success: true, message: `Karibu ${body.member.name}! Logged into ${chamaName}` };
   };
 
-  const loginSuperAdmin = (securityPin: string) => {
-    if (securityPin === 'Arabella@0258') {
-      setIsSuperAdminLoggedIn(true);
-      setCurrentUser(null);
-      setActivePortal('super_admin');
-      return { success: true, message: 'Authenticated as ChamaSmart Platform Super Admin' };
+  const loginSuperAdmin = async (securityPin: string) => {
+    const response = await fetch('/api/auth/super-admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: securityPin }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      return { success: false, message: body.error || 'Invalid operator security password.' };
     }
-    return { success: false, message: 'Invalid operator security password.' };
+    await loadAuthorizedData(true);
+    setIsSuperAdminLoggedIn(true);
+    setCurrentUser(null);
+    setActivePortal('super_admin');
+    return { success: true, message: 'Authenticated as ChamaSmart Platform Super Admin' };
   };
 
   const logout = () => {
-    setCurrentUser(null);
-    setIsSuperAdminLoggedIn(false);
-    setActivePortal('member');
+    fetch('/api/auth/logout', { method: 'POST' }).catch(err => console.error('Error signing out:', err));
+    clearSession();
   };
 
   const setActiveChamaId = (id: string) => {
@@ -377,8 +403,16 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       id: `aud-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       chamaId: chama.id,
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      actorName: activePortal === 'member' ? currentMember.name : `${currentOfficialRole.toUpperCase()} Official`,
-      actorRole: activePortal === 'member' ? 'member' as Role : currentOfficialRole,
+      actorName: isSuperAdminLoggedIn
+        ? 'Super Admin'
+        : activePortal === 'member'
+        ? currentMember.name
+        : `${currentOfficialRole.toUpperCase()} Official`,
+      actorRole: isSuperAdminLoggedIn
+        ? 'super_admin'
+        : activePortal === 'member'
+        ? 'member' as Role
+        : currentOfficialRole,
       action,
       module,
       details,
@@ -1337,49 +1371,196 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   };
 
-  // Add Member (Secretary or Chairperson capability)
-  const addMember = (memberData: Omit<Member, 'id' | 'chamaId' | 'totalSavings' | 'sharesCount' | 'activeLoanBalance' | 'creditScore' | 'kycVerified' | 'attendanceRate' | 'status'>) => {
-    // Check role authority if user is logged in
-    const callerRole = currentUser ? currentUser.role : currentOfficialRole;
-    if (currentUser && !['secretary', 'chairperson', 'super_admin'].includes(callerRole)) {
+  // Add Member (Secretary, Chama Admin, or Super Admin capability)
+  const addMember = async (
+    memberData: Omit<Member, 'id' | 'chamaId' | 'totalSavings' | 'sharesCount' | 'activeLoanBalance' | 'creditScore' | 'kycVerified' | 'attendanceRate' | 'status' | 'passwordHash'> & { password: string },
+    chamaId = activeChama.id,
+  ) => {
+    if (!isSuperAdminLoggedIn && (!currentUser || !['secretary', 'chairperson'].includes(currentUser.role))) {
       return {
         success: false,
-        message: 'Only the Secretary (or Chairperson) has authority to register and onboard new member accounts.',
+        message: 'Only the Super Admin, Secretary, or Chama Admin can onboard member accounts.',
       };
     }
 
-    const newId = `mem-${Date.now()}`;
-    const newMember: Member = {
-      ...memberData,
-      id: newId,
-      chamaId: activeChama.id,
-      totalSavings: 0,
-      sharesCount: 0,
-      activeLoanBalance: 0,
-      creditScore: 720,
-      kycVerified: true,
-      attendanceRate: 100,
-      status: 'active',
-    };
+    if (memberData.password.trim().length < 8) {
+      return { success: false, message: 'Passwords must be at least 8 characters long.' };
+    }
 
-    updateActiveChama(chama => {
+    const targetChama = allChamas.find(chama => chama.id === chamaId);
+    if (!targetChama) return { success: false, message: 'Chama workspace not found.' };
+    if (!isSuperAdminLoggedIn && currentUser?.chamaId !== chamaId) {
+      return { success: false, message: 'You can only onboard users within your own Chama.' };
+    }
+
+    const duplicate = allChamas.flatMap(chama => chama.members).find(member =>
+      member.phoneNumber.replace(/\s+/g, '') === memberData.phoneNumber.replace(/\s+/g, '') ||
+      member.membershipNumber.toLowerCase() === memberData.membershipNumber.toLowerCase() ||
+      (memberData.email && member.email.toLowerCase() === memberData.email.toLowerCase())
+    );
+    if (duplicate) return { success: false, message: 'A user account already exists with that phone, email, or membership number.' };
+
+    const response = await fetch(`/api/db/chamas/${encodeURIComponent(chamaId)}/members`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(memberData),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) return { success: false, message: body.error || 'Unable to create the account.' };
+    const newMember: Member = body;
+
+    const actor = isSuperAdminLoggedIn ? 'Super Admin' : currentUser?.name || 'Chama Official';
+    setAllChamas(prev => prev.map(chama => {
+      if (chama.id !== chamaId) return chama;
       const newAuditLogs = addAuditLog(
         chama,
         'MEMBER_ONBOARDED',
-        'Secretary Registry',
-        `Secretary recorded and onboarded new member account: ${memberData.name} (${memberData.membershipNumber}, ${memberData.phoneNumber}).`
+        'User Accounts',
+        `${actor} created an account for ${memberData.name} (${memberData.membershipNumber}, ${memberData.phoneNumber}).`
       );
-      return {
-        ...chama,
-        members: [...chama.members, newMember],
-        auditLogs: newAuditLogs,
-      };
-    });
+      return { ...chama, members: [...chama.members, newMember], auditLogs: newAuditLogs };
+    }));
 
     return {
       success: true,
-      message: `Member ${memberData.name} (${memberData.membershipNumber}) registered successfully by the Secretary!`,
+      message: `Member ${memberData.name} (${memberData.membershipNumber}) registered successfully.`,
     };
+  };
+
+  const updateMemberAccount = (
+    memberId: string,
+    changes: Pick<Member, 'name' | 'phoneNumber' | 'email' | 'membershipNumber' | 'role' | 'status' | 'nextOfKin'>,
+  ) => {
+    if (!isSuperAdminLoggedIn) return { success: false, message: 'Only the Super Admin can edit user accounts.' };
+    const chama = allChamas.find(item => item.members.some(member => member.id === memberId));
+    const target = chama?.members.find(member => member.id === memberId);
+    if (!chama || !target) return { success: false, message: 'User account not found.' };
+    const duplicate = allChamas.flatMap(item => item.members).find(member =>
+      member.id !== memberId &&
+      (member.phoneNumber.replace(/\s+/g, '') === changes.phoneNumber.replace(/\s+/g, '') ||
+        member.membershipNumber.toLowerCase() === changes.membershipNumber.toLowerCase() ||
+        (changes.email && member.email.toLowerCase() === changes.email.toLowerCase()))
+    );
+    if (duplicate) return { success: false, message: 'Another user already has that phone, email, or membership number.' };
+
+    setAllChamas(prev => prev.map(item => {
+      if (item.id !== chama.id) return item;
+      const auditLogs = addAuditLog(item, 'MEMBER_ACCOUNT_EDITED', 'User Accounts', `Super Admin edited the account for ${target.name}.`);
+      return {
+        ...item,
+        members: item.members.map(member => member.id === memberId ? { ...member, ...changes } : member),
+        auditLogs,
+      };
+    }));
+    return { success: true, message: `Account for ${target.name} updated.` };
+  };
+
+  const deleteMemberAccount = (memberId: string) => {
+    if (!isSuperAdminLoggedIn) return { success: false, message: 'Only the Super Admin can remove user accounts.' };
+    const chama = allChamas.find(item => item.members.some(member => member.id === memberId));
+    const target = chama?.members.find(member => member.id === memberId);
+    if (!chama || !target) return { success: false, message: 'User account not found.' };
+
+    setAllChamas(prev => prev.map(item => {
+      if (item.id !== chama.id) return item;
+      const auditLogs = addAuditLog(item, 'MEMBER_ACCOUNT_REMOVED', 'User Accounts', `Super Admin removed the account for ${target.name}.`, 'warning');
+      return { ...item, members: item.members.filter(member => member.id !== memberId), auditLogs };
+    }));
+    return { success: true, message: `Account for ${target.name} removed.` };
+  };
+
+  const resetMemberPassword = async (memberId: string, password: string) => {
+    if (!isSuperAdminLoggedIn && (!currentUser || !['secretary', 'chairperson'].includes(currentUser.role))) {
+      return { success: false, message: 'Only the Super Admin, Secretary, or Chama Admin can set or reset passwords.' };
+    }
+    if (password.trim().length < 8) return { success: false, message: 'Passwords must be at least 8 characters long.' };
+    const chama = allChamas.find(item => item.members.some(member => member.id === memberId));
+    const target = chama?.members.find(member => member.id === memberId);
+    if (!chama || !target) return { success: false, message: 'User account not found.' };
+    if (!isSuperAdminLoggedIn && target.chamaId !== currentUser?.chamaId) {
+      return { success: false, message: 'You can only set passwords for users in your own Chama.' };
+    }
+
+    const response = await fetch(`/api/auth/members/${encodeURIComponent(memberId)}/password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      return { success: false, message: body.error || 'Unable to update the password.' };
+    }
+    const actor = isSuperAdminLoggedIn ? 'Super Admin' : currentUser?.name || 'Chama Official';
+    setAllChamas(prev => prev.map(item => {
+      if (item.id !== chama.id) return item;
+      const auditLogs = addAuditLog(item, 'MEMBER_PASSWORD_RESET', 'User Accounts', `${actor} set or reset the password for ${target.name}.`, 'warning');
+      return { ...item, auditLogs };
+    }));
+    return { success: true, message: `Password updated for ${target.name}.` };
+  };
+
+  const saveCategoryOptions = async (categories: string[]) => {
+    const response = await fetch('/api/db/categories', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(categories),
+    });
+    if (!response.ok) throw new Error(`Unable to save categories (${response.status}).`);
+    setCategoryOptions(categories);
+  };
+
+  const addCategory = async (category: string) => {
+    if (!isSuperAdminLoggedIn) return { success: false, message: 'Only the Super Admin can manage categories.' };
+    if (!/^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(category)) return { success: false, message: 'Use letters, numbers, and spaces for a category name.' };
+    if (categoryOptions.includes(category)) return { success: false, message: 'That category already exists.' };
+    try {
+      await saveCategoryOptions([...categoryOptions, category]);
+      return { success: true, message: `Category "${category.replace(/_/g, ' ')}" added.` };
+    } catch (error) {
+      console.error('Unable to add chama category:', error);
+      return { success: false, message: error instanceof Error ? error.message : 'Unable to save category.' };
+    }
+  };
+
+  const renameCategory = async (oldCategory: string, newCategory: string) => {
+    if (!isSuperAdminLoggedIn) return { success: false, message: 'Only the Super Admin can manage categories.' };
+    if (!categoryOptions.includes(oldCategory)) return { success: false, message: 'Category not found.' };
+    if (!/^[a-z0-9]+(?:_[a-z0-9]+)*$/.test(newCategory)) return { success: false, message: 'Use letters, numbers, and spaces for a category name.' };
+    if (oldCategory !== newCategory && categoryOptions.includes(newCategory)) return { success: false, message: 'That category already exists.' };
+    if (oldCategory === newCategory) return { success: true, message: 'Category unchanged.' };
+
+    const updatedCategories = categoryOptions.map(category => category === oldCategory ? newCategory : category);
+    try {
+      await saveCategoryOptions(updatedCategories);
+      setAllChamas(prev => prev.map(chama => chama.category === oldCategory ? { ...chama, category: newCategory } : chama));
+      setRegistrationApplications(prev => prev.map(application => application.category === oldCategory ? { ...application, category: newCategory } : application));
+      return { success: true, message: `Category renamed to "${newCategory.replace(/_/g, ' ')}".` };
+    } catch (error) {
+      console.error('Unable to rename chama category:', error);
+      return { success: false, message: error instanceof Error ? error.message : 'Unable to rename category.' };
+    }
+  };
+
+  const removeCategory = async (category: string, replacementCategory?: string) => {
+    if (!isSuperAdminLoggedIn) return { success: false, message: 'Only the Super Admin can manage categories.' };
+    if (categoryOptions.length <= 1) return { success: false, message: 'At least one category must remain.' };
+    const isInUse = allChamas.some(chama => chama.category === category) ||
+      registrationApplications.some(application => application.category === category);
+    if (isInUse && (!replacementCategory || replacementCategory === category || !categoryOptions.includes(replacementCategory))) {
+      return { success: false, message: 'Choose a different category to reassign existing chamas and applications before removing this one.' };
+    }
+
+    try {
+      await saveCategoryOptions(categoryOptions.filter(item => item !== category));
+      if (isInUse && replacementCategory) {
+        setAllChamas(prev => prev.map(chama => chama.category === category ? { ...chama, category: replacementCategory } : chama));
+        setRegistrationApplications(prev => prev.map(application => application.category === category ? { ...application, category: replacementCategory } : application));
+      }
+      return { success: true, message: `Category "${category.replace(/_/g, ' ')}" removed.` };
+    } catch (error) {
+      console.error('Unable to remove chama category:', error);
+      return { success: false, message: error instanceof Error ? error.message : 'Unable to remove category.' };
+    }
   };
 
   // Assign Roles (Chairperson governance authority)
@@ -1516,10 +1697,10 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const resetToDefaults = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(APPLICATIONS_STORAGE_KEY);
+    localStorage.removeItem(CATEGORIES_STORAGE_KEY);
     setAllChamas(INITIAL_CHAMAS);
     setRegistrationApplications(INITIAL_REGISTRATION_APPLICATIONS);
+    setCategoryOptions(DEFAULT_CHAMA_CATEGORIES);
     setActiveChamaIdState(INITIAL_CHAMAS[0].id);
     setCurrentMemberId('mem-5');
     fetch('/api/db/reset', { method: 'POST' }).catch(err => console.error('Error resetting DB:', err));
@@ -1593,6 +1774,10 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         loginSuperAdmin,
         logout,
         registrationApplications,
+        categoryOptions,
+        addCategory,
+        renameCategory,
+        removeCategory,
         submitRegistrationApplication,
         reviewRegistrationApplication,
         assignMemberRole,
@@ -1611,6 +1796,9 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         castVote,
         addInvestmentAsset,
         addMember,
+        updateMemberAccount,
+        deleteMemberAccount,
+        resetMemberPassword,
         exportSqlDump,
         isDbSyncing,
         resetToDefaults,
