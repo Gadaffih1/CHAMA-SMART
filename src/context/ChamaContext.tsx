@@ -314,18 +314,18 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     return { 
       success: false, 
-      message: 'Credentials not recognized. Try one of the 1-click test accounts below!' 
+      message: 'Credentials not recognized. Please check your phone number or membership number.' 
     };
   };
 
   const loginSuperAdmin = (securityPin: string) => {
-    if (securityPin.trim() === 'admin2026' || securityPin.trim() === 'admin' || securityPin.trim().length >= 4) {
+    if (securityPin === 'Arabella@0258') {
       setIsSuperAdminLoggedIn(true);
       setCurrentUser(null);
       setActivePortal('super_admin');
       return { success: true, message: 'Authenticated as ChamaSmart Platform Super Admin' };
     }
-    return { success: false, message: 'Invalid operator security PIN. Use: admin2026' };
+    return { success: false, message: 'Invalid operator security password.' };
   };
 
   const logout = () => {

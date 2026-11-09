@@ -205,58 +205,58 @@ export const SuperAdminPortal: React.FC = () => {
           </div>
         </div>
 
-        {/* Super Admin Desk Tabs */}
-        <div className="flex gap-2 overflow-x-auto pt-4 border-t border-amber-500/20 mt-6 no-scrollbar">
+        {/* Super Admin Desk Tabs - Responsive & Non-Overlapping */}
+        <div className="flex gap-2 overflow-x-auto pt-4 border-t border-amber-500/20 mt-6 no-scrollbar pb-1">
           <button
             type="button"
             onClick={() => setAdminTab('applications')}
-            className={`py-2 px-3.5 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
+            className={`py-2 px-3 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 transition cursor-pointer ${
               adminTab === 'applications'
                 ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-md font-black'
                 : 'bg-rose-950/40 text-rose-200 hover:bg-rose-900/60 border border-amber-500/20'
             }`}
           >
-            <Clock className="w-3.5 h-3.5" />
-            <span>Public Registration Approvals ({pendingApps.length})</span>
+            <Clock className="w-3.5 h-3.5 shrink-0" />
+            <span className="shrink-0">Public Registration Approvals ({pendingApps.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setAdminTab('tenants')}
-            className={`py-2 px-3.5 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
+            className={`py-2 px-3 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 transition cursor-pointer ${
               adminTab === 'tenants'
                 ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-md font-black'
                 : 'bg-rose-950/40 text-rose-200 hover:bg-rose-900/60 border border-amber-500/20'
             }`}
           >
-            <Building2 className="w-3.5 h-3.5" />
-            <span>Active Workspaces ({allChamas.length})</span>
+            <Building2 className="w-3.5 h-3.5 shrink-0" />
+            <span className="shrink-0">Active Workspaces ({allChamas.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setAdminTab('tiers')}
-            className={`py-2 px-3.5 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
+            className={`py-2 px-3 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 transition cursor-pointer ${
               adminTab === 'tiers'
                 ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-md font-black'
                 : 'bg-rose-950/40 text-rose-200 hover:bg-rose-900/60 border border-amber-500/20'
             }`}
           >
-            <DollarSign className="w-3.5 h-3.5" />
-            <span>Commercial SaaS Tiers</span>
+            <DollarSign className="w-3.5 h-3.5 shrink-0" />
+            <span className="shrink-0">Commercial SaaS Tiers</span>
           </button>
 
           <button
             type="button"
             onClick={() => setAdminTab('database')}
-            className={`py-2 px-3.5 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
+            className={`py-2 px-3 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 transition cursor-pointer ${
               adminTab === 'database'
                 ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-md font-black'
                 : 'bg-rose-950/40 text-rose-200 hover:bg-rose-900/60 border border-amber-500/20'
             }`}
           >
-            <Database className="w-3.5 h-3.5" />
-            <span>Database & SQL Dumps</span>
+            <Database className="w-3.5 h-3.5 shrink-0" />
+            <span className="shrink-0">Database & SQL Dumps</span>
           </button>
         </div>
       </div>
@@ -509,17 +509,17 @@ export const SuperAdminPortal: React.FC = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {[
-              { name: 'Starter', limit: 'Free (Individual / Family)', price: 'Free', color: 'slate', desc: 'Free tier for small community circles' },
-              { name: 'Basic', limit: 'Up to 10 Members', price: 'KSh 500 / mo', color: 'blue', desc: '500/- per month for small groups & table banking' },
-              { name: 'Growth', limit: 'Up to 30 Members', price: 'KSh 1,500 / mo', color: 'emerald', desc: '1,500/- per month for active revolving lending' },
-              { name: 'Professional', limit: 'Up to 50 Members', price: 'KSh 2,500 / mo', color: 'violet', desc: '2,500/- per month for syndicates & asset clubs' },
-              { name: 'Enterprise', limit: 'Over 50 Members', price: 'Custom Quote', color: 'amber', desc: 'Custom quote for full SACCO compliance & multi-branch' },
+              { name: 'Starter', limit: 'Free upto members', price: 'Free', color: 'slate', desc: 'Free upto members' },
+              { name: 'Basic', limit: 'Upto 10 members', price: '500/- per month', color: 'blue', desc: '500/- per month for upto 10 members' },
+              { name: 'Growth', limit: 'Upto 30 members', price: '1,500/- per month', color: 'emerald', desc: '1500/- per month for upto 30 members' },
+              { name: 'Professional', limit: 'Upto 50 members', price: '2,500/- per month', color: 'violet', desc: '2500/- per month for upto 50 members' },
+              { name: 'Enterprise', limit: 'Over 50 members', price: 'Custom Quote', color: 'amber', desc: 'Custom quote' },
             ].map((tier) => (
               <div key={tier.name} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between">
                 <div>
                   <span className="font-bold text-slate-900 text-sm block">{tier.name}</span>
                   <span className="text-[11px] text-slate-500 block">{tier.limit}</span>
-                  <div className="text-base font-black text-slate-900 font-mono-num mt-2">
+                  <div className="text-sm sm:text-base font-black text-slate-900 font-mono-num mt-2">
                     {tier.price}
                   </div>
                 </div>

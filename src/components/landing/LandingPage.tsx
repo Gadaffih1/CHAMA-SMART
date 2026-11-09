@@ -20,19 +20,16 @@ import {
   EyeOff, 
   Crown, 
   Check, 
-  AlertCircle,
-  Database,
-  Download
+  AlertCircle
 } from 'lucide-react';
 import { useChama } from '../../context/ChamaContext';
 import { PublicChamaRegistrationModal } from '../modules/PublicChamaRegistrationModal';
-import { SqlDumpModal } from '../common/SqlDumpModal';
 
 export const LandingPage: React.FC = () => {
-  const { loginMember, loginSuperAdmin, exportSqlDump } = useChama();
+  const { loginMember, loginSuperAdmin } = useChama();
 
   const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('••••');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -44,9 +41,6 @@ export const LandingPage: React.FC = () => {
 
   // Public Chama Registration Modal
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-
-  // Downloadable SQL Dump Modal
-  const [showSqlDumpModal, setShowSqlDumpModal] = useState(false);
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,17 +59,6 @@ export const LandingPage: React.FC = () => {
         setLoginError(res.message);
       }
     }, 400);
-  };
-
-  const handleQuickLogin = (demoIdentifier: string) => {
-    setIdentifier(demoIdentifier);
-    setIsLoading(true);
-    setLoginError('');
-
-    setTimeout(() => {
-      loginMember(demoIdentifier);
-      setIsLoading(false);
-    }, 300);
   };
 
   const handleOperatorSubmit = (e: React.FormEvent) => {
@@ -116,17 +99,6 @@ export const LandingPage: React.FC = () => {
               <a href="#features" className="hover:text-amber-300 transition">Platform Modules</a>
               <a href="#governance" className="hover:text-amber-300 transition">Security & Governance</a>
             </div>
-
-            {/* Download SQL Dump Button */}
-            <button
-              type="button"
-              onClick={() => setShowSqlDumpModal(true)}
-              className="py-1.5 px-3 sm:py-2 sm:px-3 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-bold text-xs rounded-xl border border-amber-500/40 transition flex items-center gap-1.5 cursor-pointer shrink-0"
-              title="Download full SQL database dump file (.sql)"
-            >
-              <Database className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-              <span>SQL Dump</span>
-            </button>
 
             {/* Public Chama Registration Button */}
             <button
@@ -178,16 +150,6 @@ export const LandingPage: React.FC = () => {
                   <Sparkles className="w-4 h-4 text-slate-950" />
                   <span>Register a New Chama</span>
                   <ArrowRight className="w-4 h-4 text-slate-950" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setShowSqlDumpModal(true)}
-                  className="py-3 px-4 sm:px-5 bg-gradient-to-r from-rose-950/90 to-amber-950/90 hover:from-rose-900 hover:to-amber-900 text-amber-300 font-bold text-xs rounded-xl shadow-md border border-amber-400/40 flex items-center gap-2 transition cursor-pointer"
-                  title="Download complete database SQL dump (.sql)"
-                >
-                  <Download className="w-4 h-4 text-amber-400" />
-                  <span>Download SQL Dump</span>
                 </button>
 
                 <a
@@ -315,94 +277,7 @@ export const LandingPage: React.FC = () => {
                     <span>Contact your chama administrator</span>
                   </div>
 
-                  {/* 1-Click Test Accounts */}
-                  <div className="pt-4 border-t border-rose-900/60">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                        Quick 1-Click Demo Accounts
-                      </span>
-                    </div>
-
-                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                      <button
-                        type="button"
-                        onClick={() => handleQuickLogin('+254756789012')}
-                        className="w-full text-left p-2 rounded-xl bg-[#140713] hover:bg-rose-950/60 border border-rose-900/60 hover:border-amber-400/40 transition flex items-center justify-between text-xs"
-                      >
-                        <div>
-                          <div className="font-bold text-white flex items-center gap-1.5">
-                            <span>Grace Wanjiku Kamau</span>
-                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 font-bold">Member</span>
-                          </div>
-                          <div className="text-[10px] text-rose-300/60">CS-TUM-005 • Tumaini & Baraka Boda Boda</div>
-                        </div>
-                        <span className="text-[10px] text-amber-400 font-bold">Sign In →</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleQuickLogin('+254712345678')}
-                        className="w-full text-left p-2 rounded-xl bg-[#140713] hover:bg-rose-950/60 border border-rose-900/60 hover:border-amber-400/40 transition flex items-center justify-between text-xs"
-                      >
-                        <div>
-                          <div className="font-bold text-white flex items-center gap-1.5">
-                            <span>Mary Atieno Omondi</span>
-                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold">Chairperson</span>
-                          </div>
-                          <div className="text-[10px] text-rose-300/60">CS-TUM-001 • Executive Approvals</div>
-                        </div>
-                        <span className="text-[10px] text-amber-400 font-bold">Sign In →</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleQuickLogin('+254723456789')}
-                        className="w-full text-left p-2 rounded-xl bg-[#140713] hover:bg-rose-950/60 border border-rose-900/60 hover:border-amber-400/40 transition flex items-center justify-between text-xs"
-                      >
-                        <div>
-                          <div className="font-bold text-white flex items-center gap-1.5">
-                            <span>Peter Kiprop Cheruiyot</span>
-                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-pink-500/20 text-pink-300 font-bold">Treasurer</span>
-                          </div>
-                          <div className="text-[10px] text-rose-300/60">CS-TUM-002 • Cashbook & M-Pesa</div>
-                        </div>
-                        <span className="text-[10px] text-amber-400 font-bold">Sign In →</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleQuickLogin('+254734567890')}
-                        className="w-full text-left p-2 rounded-xl bg-[#140713] hover:bg-rose-950/60 border border-rose-900/60 hover:border-amber-400/40 transition flex items-center justify-between text-xs"
-                      >
-                        <div>
-                          <div className="font-bold text-white flex items-center gap-1.5">
-                            <span>Faith Njeri Mwangi</span>
-                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-bold">Secretary</span>
-                          </div>
-                          <div className="text-[10px] text-rose-300/60">CS-TUM-003 • Minutes & Registers</div>
-                        </div>
-                        <span className="text-[10px] text-amber-400 font-bold">Sign In →</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleQuickLogin('+254711998877')}
-                        className="w-full text-left p-2 rounded-xl bg-[#140713] hover:bg-rose-950/60 border border-rose-900/60 hover:border-amber-400/40 transition flex items-center justify-between text-xs"
-                      >
-                        <div>
-                          <div className="font-bold text-white flex items-center gap-1.5">
-                            <span>Kevin Otieno Juma</span>
-                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 font-bold">Chairperson</span>
-                          </div>
-                          <div className="text-[10px] text-rose-300/60">CS-BAR-001 • Baraka Boda Boda</div>
-                        </div>
-                        <span className="text-[10px] text-amber-400 font-bold">Sign In →</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 flex items-center justify-center gap-3 text-[10px] text-rose-300/60">
+                  <div className="pt-2 flex items-center justify-center gap-3 text-[10px] text-rose-300/60 border-t border-rose-900/60 mt-4">
                     <span className="flex items-center gap-1">
                       <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
                       Secure access
@@ -537,12 +412,12 @@ export const LandingPage: React.FC = () => {
             <form onSubmit={handleOperatorSubmit} className="space-y-3">
               <div>
                 <label className="text-[11px] font-semibold text-amber-200 block mb-1">
-                  Operator Security Key (Demo PIN: admin2026)
+                  Operator Security Password
                 </label>
                 <input
                   type="password"
                   required
-                  placeholder="admin2026"
+                  placeholder="Enter security password"
                   value={operatorPin}
                   onChange={(e) => setOperatorPin(e.target.value)}
                   className="w-full px-3 py-2 bg-[#120511] border border-amber-500/40 rounded-xl text-xs font-mono text-white focus:outline-none focus:ring-2 focus:ring-amber-400"
@@ -573,12 +448,6 @@ export const LandingPage: React.FC = () => {
       <PublicChamaRegistrationModal
         isOpen={showRegisterModal}
         onClose={() => setShowRegisterModal(false)}
-      />
-
-      {/* Downloadable SQL Dump Modal */}
-      <SqlDumpModal
-        isOpen={showSqlDumpModal}
-        onClose={() => setShowSqlDumpModal(false)}
       />
     </div>
   );

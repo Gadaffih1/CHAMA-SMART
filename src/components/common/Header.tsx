@@ -51,7 +51,7 @@ export const Header: React.FC = () => {
   const [isSqlDumpModalOpen, setIsSqlDumpModalOpen] = useState(false);
 
   const handleReset = () => {
-    if (confirm('Reset ChamaSmart demo data back to default seed?')) {
+    if (confirm('Reset ChamaSmart system records back to initial state?')) {
       resetToDefaults();
     }
   };
@@ -66,30 +66,30 @@ export const Header: React.FC = () => {
           <div className="flex items-center justify-between py-2.5 sm:py-3 gap-2 sm:gap-4">
             
             {/* Logo and Wordmark */}
-            <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-rose-600 via-pink-500 to-amber-400 flex items-center justify-center text-white shadow-md shadow-rose-500/20 shrink-0">
-                <Crown className="w-4 h-4 sm:w-5 sm:h-5 text-amber-100" />
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-rose-600 via-pink-500 to-amber-400 flex items-center justify-center text-white shadow-md shadow-rose-500/20 shrink-0">
+                <Crown className="w-4 h-4 sm:w-5 sm:h-5 text-amber-100 shrink-0" />
               </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-black text-lg sm:text-xl tracking-tight bg-gradient-to-r from-rose-900 via-pink-800 to-amber-600 bg-clip-text text-transparent">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-nowrap">
+                  <span className="font-black text-base sm:text-xl tracking-tight bg-gradient-to-r from-rose-900 via-pink-800 to-amber-600 bg-clip-text text-transparent whitespace-nowrap">
                     ChamaSmart
                   </span>
-                  <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                  <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-900 border border-amber-300 shrink-0">
                     Gold
                   </span>
                 </div>
-                <p className="hidden sm:block text-[10px] text-amber-800/70 font-medium">
+                <p className="hidden md:block text-[10px] text-amber-800/70 font-medium whitespace-nowrap">
                   SAVINGS • LENDING • INVESTMENT
                 </p>
               </div>
             </div>
 
             {/* Right: User Profile & Actions */}
-            <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0 flex-nowrap">
               {/* Logged in member badge (desktop only) */}
               {currentUser && (
-                <div className="hidden xl:flex items-center gap-2 bg-rose-50/80 border border-amber-200/80 rounded-xl px-2.5 py-1 text-xs">
+                <div className="hidden xl:flex items-center gap-2 bg-rose-50/80 border border-amber-200/80 rounded-xl px-2.5 py-1 text-xs shrink-0">
                   <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-rose-600 to-amber-500 text-white font-bold flex items-center justify-center text-[11px] shadow-xs shrink-0">
                     {currentUser.name.charAt(0)}
                   </div>
@@ -105,7 +105,7 @@ export const Header: React.FC = () => {
                 type="button"
                 onClick={() => setIsSqlDumpModalOpen(true)}
                 title="Download Database SQL Dump (.sql)"
-                className="py-1.5 px-2 sm:px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs rounded-xl shadow-2xs transition flex items-center gap-1 cursor-pointer shrink-0"
+                className="py-1.5 px-2 sm:px-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs rounded-xl shadow-2xs transition flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
               >
                 <Database className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                 <span className="hidden sm:inline text-[11px]">SQL Dump</span>
@@ -115,7 +115,7 @@ export const Header: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsMpesaModalOpen(true)}
-                className="py-1.5 px-2.5 sm:px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow-xs border border-emerald-400/30 transition flex items-center gap-1 sm:gap-1.5 cursor-pointer shrink-0"
+                className="py-1.5 px-2 sm:px-2.5 sm:px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow-xs border border-emerald-400/30 transition flex items-center gap-1 sm:gap-1.5 cursor-pointer shrink-0 whitespace-nowrap"
               >
                 <Smartphone className="w-3.5 h-3.5 text-emerald-100 shrink-0" />
                 <span className="text-[11px] sm:text-xs">M-Pesa STK</span>
@@ -126,20 +126,20 @@ export const Header: React.FC = () => {
                 type="button"
                 onClick={logout}
                 title="Log out back to Home"
-                className="py-1.5 px-2 sm:px-2.5 text-rose-900 hover:text-rose-700 bg-rose-100/60 hover:bg-rose-200/60 border border-rose-200 rounded-xl text-xs font-semibold transition flex items-center gap-1 cursor-pointer shrink-0"
+                className="py-1.5 px-2 sm:px-2.5 text-rose-900 hover:text-rose-700 bg-rose-100/60 hover:bg-rose-200/60 border border-rose-200 rounded-xl text-xs font-semibold transition flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
               >
                 <LogOut className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline text-xs">Sign Out</span>
               </button>
 
-              {/* Reset Demo */}
+              {/* Reset Records */}
               <button
                 type="button"
                 onClick={handleReset}
-                title="Reset demo data"
+                title="Reset system records"
                 className="p-1.5 text-rose-400 hover:text-rose-700 rounded-lg hover:bg-rose-50 transition shrink-0"
               >
-                <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
               </button>
             </div>
           </div>
@@ -215,7 +215,7 @@ export const Header: React.FC = () => {
                         {/* Other Chamas Option */}
                         <div className="border-t border-amber-100 mt-1 pt-1.5">
                           <div className="text-[10px] font-bold uppercase tracking-wider text-amber-800/60 px-3 py-1">
-                            Other Demo Chamas
+                            Other Registered Chamas
                           </div>
                           {allChamas
                             .filter(c => !userChamas.some(uc => uc.id === c.id))
@@ -263,14 +263,14 @@ export const Header: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActivePortal('member')}
-                className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                className={`flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer text-[11px] sm:text-xs ${
                   activePortal === 'member'
                     ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-xs'
                     : 'text-rose-950 hover:bg-rose-50/80'
                 }`}
               >
                 <User className="w-3.5 h-3.5 shrink-0" />
-                <span>Member Portal</span>
+                <span className="shrink-0">Member Portal</span>
               </button>
 
               {/* Officials Desk Tab */}
@@ -278,14 +278,14 @@ export const Header: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setActivePortal('officials')}
-                  className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                  className={`flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer text-[11px] sm:text-xs ${
                     activePortal === 'officials'
                       ? 'bg-gradient-to-r from-amber-600 to-yellow-600 text-white shadow-xs'
                       : 'text-amber-950 hover:bg-amber-50/80'
                   }`}
                 >
                   <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                  <span>Officials Desk</span>
+                  <span className="shrink-0">Officials Desk</span>
                 </button>
               )}
 
@@ -294,14 +294,14 @@ export const Header: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setActivePortal('super_admin')}
-                  className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                  className={`flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 rounded-lg transition flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer text-[11px] sm:text-xs ${
                     activePortal === 'super_admin'
                       ? 'bg-gradient-to-r from-slate-900 to-rose-950 text-amber-300 shadow-xs'
                       : 'text-rose-950 hover:bg-rose-50/80'
                   }`}
                 >
                   <Globe className="w-3.5 h-3.5 shrink-0" />
-                  <span>SaaS Admin</span>
+                  <span className="shrink-0">SaaS Admin</span>
                 </button>
               )}
             </div>
