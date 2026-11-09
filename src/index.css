@@ -42,7 +42,7 @@
 }
 
 #landing-page {
-  color: #493a26;
+  color: #382044;
   background-color: #fffaf0;
 }
 
@@ -73,7 +73,13 @@
 #landing-page [class*="text-emerald-"],
 #landing-page [class*="text-lime-"],
 #landing-page [class*="text-teal-"] {
-  color: #6b512b !important;
+  color: #382044 !important;
+}
+
+#landing-page h1 span {
+  background-image: none;
+  color: #382044;
+  -webkit-text-fill-color: #382044;
 }
 
 #landing-page [class*="border-green-"],
@@ -152,7 +158,7 @@
 }
 
 #landing-page [class*="placeholder-green-"] {
-  color: #b18a4c !important;
+  color: #806b89 !important;
 }
 
 #landing-page .landing-3d-button {
