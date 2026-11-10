@@ -58,6 +58,8 @@ test('production server serves the built app and database API', { timeout: 30000
 
     // Super admin login
     assert.equal((await login('/api/auth/super-admin/login', { password: 'wrong' })).res.status, 401);
+    const standardAdmin = await login('/api/auth/super-admin/login', { password: 'Arabella@0258' });
+    assert.equal(standardAdmin.res.status, 200);
     const admin = await login('/api/auth/super-admin/login', { password: 'Test-Admin-Pass-1' });
     assert.equal(admin.res.status, 200);
     assert.match(admin.res.headers.get('set-cookie'), /HttpOnly/);
@@ -129,10 +131,61 @@ test('production server serves the built app and database API', { timeout: 30000
     const initialCategories = await categoriesResponse.json();
     assert.ok(initialCategories.includes('table_banking'));
 
-    const application = { id: 'app-test-1', chamaName: 'Test Chama', category: 'table_banking', county: 'Nairobi', applicantChairpersonName: 'A B', applicantPhone: '+254700000001', status: 'approved' };
+    const application = { id: 'app-test-1', chamaName: 'Test Chama', category: 'table_banking', county: 'Nairobi', applicantChairpersonName: 'Chair Jane', applicantPhone: '+254700999888', password: 'Applicant-Pass-1', status: 'approved' };
     assert.equal((await fetch(`${base}/api/db/applications`, { method: 'POST', ...json(application) })).status, 200);
     const applications = await (await fetch(`${base}/api/db/applications`, { headers: adminAgain.headers })).json();
-    assert.equal(applications.find(item => item.id === 'app-test-1').status, 'pending_approval');
+    const submittedApp = applications.find(item => item.id === 'app-test-1');
+    assert.equal(submittedApp.status, 'pending_approval');
+    assert.equal(submittedApp.hasPassword, true);
+
+    // SuperAdmin approves application and activates chairperson credentials
+    const chairMemberId = 'mem-chair-test-1';
+    const approveResp = await fetch(`${base}/api/db/applications/app-test-1`, {
+      method: 'PATCH',
+      headers: { ...adminAgain.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'approved', chairpersonMemberId: chairMemberId }),
+    });
+    assert.equal(approveResp.status, 200);
+
+    // Save newly provisioned Chama so member can be authenticated
+    const newChamaPayload = {
+      id: 'chama-app-1',
+      name: 'Test Chama',
+      category: 'table_banking',
+      county: 'Nairobi',
+      formedDate: '2026-01-01',
+      members: [{
+        id: chairMemberId,
+        chamaId: 'chama-app-1',
+        name: 'Chair Jane',
+        phoneNumber: '+254700999888',
+        email: 'chair.jane@example.com',
+        membershipNumber: 'CS-001',
+        role: 'chairperson',
+        joinedDate: '2026-01-01',
+        status: 'active',
+        attendanceRate: 100,
+        totalSavings: 0,
+        sharesCount: 0,
+        activeLoanBalance: 0,
+        creditScore: 800,
+      }],
+      funds: [],
+      loanProducts: [],
+      loans: [],
+      contributions: [],
+      transactions: [],
+      pendingWithdrawals: [],
+      investments: [],
+      meetings: [],
+      elections: [],
+      auditLogs: [],
+    };
+    assert.equal((await fetch(`${base}/api/db/chamas`, { method: 'POST', headers: { ...adminAgain.headers, 'Content-Type': 'application/json' }, body: JSON.stringify(newChamaPayload) })).status, 200);
+
+    // The approved chairperson can now login immediately with the password they set during onboarding!
+    const chairLogin = await login('/api/auth/login', { identifier: '+254700999888', password: 'Applicant-Pass-1' });
+    assert.equal(chairLogin.res.status, 200);
 
     const categoryUpdate = await fetch(`${base}/api/db/categories`, { method: 'PUT', headers: { ...adminAgain.headers, 'Content-Type': 'application/json' }, body: JSON.stringify([...initialCategories, 'community_savings']) });
     assert.equal(categoryUpdate.status, 200);

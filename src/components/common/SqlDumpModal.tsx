@@ -122,20 +122,20 @@ export const SqlDumpModal: React.FC<SqlDumpModalProps> = ({ isOpen, onClose }) =
       <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border-2 border-amber-400/50 overflow-hidden z-10 flex flex-col max-h-[90vh]">
         
         {/* Header with Pink & Gold theme */}
-        <div className="p-5 sm:p-6 bg-gradient-to-r from-[#170614] via-[#260e22] to-[#2b1208] text-white flex items-center justify-between border-b border-amber-500/30 shrink-0">
+        <div className="p-5 sm:p-6 bg-gradient-to-r from-[#092214] via-[#0d2e1b] to-[#07190e] text-white flex items-center justify-between border-b border-emerald-500/30 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 flex items-center justify-center font-bold shadow-md shadow-amber-950/50">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 flex items-center justify-center font-bold shadow-md shadow-emerald-950/50">
               <Database className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-black text-lg sm:text-xl text-white">Download Database SQL Dump</h3>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                   ANSI / SQL
                 </span>
               </div>
-              <p className="text-xs text-rose-200/80 mt-0.5">
-                Saved in workspace folder <span className="font-mono font-bold text-amber-300">/export_sql_dump/</span>
+              <p className="text-xs text-emerald-200/80 mt-0.5">
+                Saved in workspace folder <span className="font-mono font-bold text-emerald-300">/export_sql_dump/</span>
               </p>
             </div>
           </div>
@@ -143,7 +143,7 @@ export const SqlDumpModal: React.FC<SqlDumpModalProps> = ({ isOpen, onClose }) =
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-rose-950/60 hover:bg-rose-900 border border-amber-500/30 text-rose-200 flex items-center justify-center transition cursor-pointer"
+            className="w-8 h-8 rounded-full bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-500/30 text-emerald-200 flex items-center justify-center transition cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -156,7 +156,7 @@ export const SqlDumpModal: React.FC<SqlDumpModalProps> = ({ isOpen, onClose }) =
             onClick={() => setActiveTab('overview')}
             className={`pb-2.5 px-3 text-xs font-bold transition border-b-2 cursor-pointer ${
               activeTab === 'overview'
-                ? 'border-amber-600 text-amber-900 font-black'
+                ? 'border-emerald-600 text-emerald-950 font-black'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -170,7 +170,7 @@ export const SqlDumpModal: React.FC<SqlDumpModalProps> = ({ isOpen, onClose }) =
             }}
             className={`pb-2.5 px-3 text-xs font-bold transition border-b-2 cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'preview'
-                ? 'border-amber-600 text-amber-900 font-black'
+                ? 'border-emerald-600 text-emerald-950 font-black'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -191,10 +191,10 @@ export const SqlDumpModal: React.FC<SqlDumpModalProps> = ({ isOpen, onClose }) =
           {activeTab === 'overview' && (
             <div className="space-y-5">
               {/* Primary 1-Click Download Card */}
-              <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-amber-500/10 border-2 border-amber-300/80 space-y-4">
+              <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/10 border-2 border-emerald-300/80 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
                       Standard Download
                     </span>
                     <h4 className="font-bold text-slate-900 text-base mt-1">
@@ -219,7 +219,7 @@ export const SqlDumpModal: React.FC<SqlDumpModalProps> = ({ isOpen, onClose }) =
                       type="button"
                       onClick={handleDownloadLatest}
                       disabled={isDbSyncing}
-                      className="py-2.5 px-4 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs rounded-xl shadow-md border border-amber-300 flex items-center gap-1.5 transition cursor-pointer disabled:opacity-60"
+                      className="py-2.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs rounded-xl shadow-md border border-emerald-300 flex items-center gap-1.5 transition cursor-pointer disabled:opacity-60"
                     >
                       <Download className="w-4 h-4 text-slate-950 shrink-0" />
                       <span>Download .SQL File</span>

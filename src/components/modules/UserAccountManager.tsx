@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pencil, Plus, Shield, Trash2, UserRound, X } from 'lucide-react';
+import { Filter, KeyRound, Pencil, Plus, Search, Shield, Trash2, UserRound, X } from 'lucide-react';
 import { useChama } from '../../context/ChamaContext';
 import { Member, Role } from '../../types';
 
@@ -55,6 +55,9 @@ export const UserAccountManager: React.FC = () => {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [resetTarget, setResetTarget] = useState<Member | null>(null);
   const [resetPassword, setResetPassword] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedChamaFilter, setSelectedChamaFilter] = useState('all');
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState('all');
   const [newCategory, setNewCategory] = useState('');
   const [renamingCategory, setRenamingCategory] = useState<string | null>(null);
   const [renamedCategory, setRenamedCategory] = useState('');
@@ -65,8 +68,22 @@ export const UserAccountManager: React.FC = () => {
   if (!isSuperAdminLoggedIn) return null;
 
   const accounts = allChamas.flatMap(chama =>
-    chama.members.map(member => ({ member, chamaName: chama.name })),
+    chama.members.map(member => ({ member, chamaName: chama.name, chamaId: chama.id })),
   );
+
+  const filteredAccounts = accounts.filter(({ member, chamaName, chamaId }) => {
+    if (selectedChamaFilter !== 'all' && chamaId !== selectedChamaFilter) return false;
+    if (selectedRoleFilter !== 'all' && member.role !== selectedRoleFilter) return false;
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      member.name.toLowerCase().includes(q) ||
+      member.phoneNumber.toLowerCase().includes(q) ||
+      (member.email && member.email.toLowerCase().includes(q)) ||
+      member.membershipNumber.toLowerCase().includes(q) ||
+      chamaName.toLowerCase().includes(q)
+    );
+  });
 
   const startCreate = () => {
     setEditingMember(null);
@@ -99,6 +116,13 @@ export const UserAccountManager: React.FC = () => {
     };
 
     if (editingMember) {
+      if (draft.password && draft.password.trim()) {
+        if (draft.password.trim().length < 8) {
+          setFeedback('Password must be at least 8 characters long.');
+          return;
+        }
+        await resetMemberPassword(editingMember.id, draft.password.trim());
+      }
       const result = updateMemberAccount(editingMember.id, {
         name: draft.name.trim(),
         phoneNumber: draft.phoneNumber.trim(),
@@ -108,7 +132,11 @@ export const UserAccountManager: React.FC = () => {
         status: draft.status,
         nextOfKin,
       });
-      setFeedback(result.message);
+      setFeedback(
+        draft.password && draft.password.trim().length >= 8
+          ? `${result.message} Password successfully updated.`
+          : result.message
+      );
       if (result.success) {
         setEditingMember(null);
         setDraft(emptyDraft);
@@ -195,12 +223,54 @@ export const UserAccountManager: React.FC = () => {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
           <div>
             <h3 className="font-bold text-slate-900">User Accounts</h3>
-            <p className="text-xs text-slate-500 mt-1">Create, edit, remove, and reset accounts across all Chama workspaces.</p>
+            <p className="text-xs text-slate-500 mt-1">Create, edit, remove, and reset passwords for any account across all Chama workspaces.</p>
           </div>
           <button type="button" onClick={startCreate} className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-amber-400">
             <Plus className="h-4 w-4" /> Add User
           </button>
         </div>
+
+        {/* Search & Filter Controls */}
+        <div className="grid gap-3 sm:grid-cols-3 pt-1 pb-1">
+          <div className="relative">
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search user, phone, email, Chama..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Filter className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <select
+              value={selectedChamaFilter}
+              onChange={e => setSelectedChamaFilter(e.target.value)}
+              className="w-full py-2 px-2.5 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none"
+            >
+              <option value="all">All Chamas ({allChamas.length})</option>
+              {allChamas.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <select
+              value={selectedRoleFilter}
+              onChange={e => setSelectedRoleFilter(e.target.value)}
+              className="w-full py-2 px-2.5 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none"
+            >
+              <option value="all">All Roles</option>
+              <option value="chairperson">Chama Admin (Chairperson)</option>
+              <option value="treasurer">Treasurer</option>
+              <option value="secretary">Secretary</option>
+              <option value="loan_officer">Loan Officer</option>
+              <option value="member">Member</option>
+            </select>
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-left text-xs">
             <thead className="bg-slate-50 text-slate-600">
@@ -213,7 +283,7 @@ export const UserAccountManager: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {accounts.map(({ member, chamaName }) => (
+              {filteredAccounts.map(({ member, chamaName }) => (
                 <tr key={member.id}>
                   <td className="px-3 py-3">
                     <span className="block font-bold text-slate-900">{member.name}</span>
@@ -231,7 +301,7 @@ export const UserAccountManager: React.FC = () => {
                   </td>
                 </tr>
               ))}
-              {accounts.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-slate-500">No user accounts found.</td></tr>}
+              {filteredAccounts.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-slate-500">No matching user accounts found.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -325,9 +395,27 @@ export const UserAccountManager: React.FC = () => {
                 </select>
               </label>
             </div>
-            {!editingMember && (
-              <label className="block text-xs font-semibold text-slate-700">Initial password
-                <input required type="password" minLength={8} autoComplete="new-password" value={draft.password} onChange={event => setDraft({ ...draft, password: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5" />
+            {editingMember ? (
+              <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3 space-y-1">
+                <label className="text-xs font-semibold text-blue-950 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <KeyRound className="h-3.5 w-3.5 text-blue-600" /> Set / Reset User Password
+                  </span>
+                  <span className="text-[10px] text-blue-700 font-normal">Leave blank to retain current password</span>
+                </label>
+                <input
+                  type="password"
+                  minLength={8}
+                  autoComplete="new-password"
+                  placeholder="Enter new password (min. 8 characters)"
+                  value={draft.password}
+                  onChange={event => setDraft({ ...draft, password: event.target.value })}
+                  className="mt-1 w-full rounded-xl border border-blue-300 bg-white px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </div>
+            ) : (
+              <label className="block text-xs font-semibold text-slate-700">Initial password *
+                <input required type="password" minLength={8} autoComplete="new-password" placeholder="At least 8 characters" value={draft.password} onChange={event => setDraft({ ...draft, password: event.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400" />
               </label>
             )}
             <div className="grid gap-3 sm:grid-cols-3">

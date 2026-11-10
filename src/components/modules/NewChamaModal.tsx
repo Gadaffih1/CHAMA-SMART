@@ -11,7 +11,11 @@ import {
   Coins, 
   Smartphone, 
   ShieldCheck, 
-  Layers 
+  Layers,
+  Lock,
+  Eye,
+  EyeOff,
+  UserCheck
 } from 'lucide-react';
 import { useChama } from '../../context/ChamaContext';
 import { ChamaCategory } from '../../types';
@@ -32,6 +36,14 @@ export const NewChamaModal: React.FC<NewChamaModalProps> = ({ isOpen, onClose })
   const [mpesaPaybill, setMpesaPaybill] = useState<string>('Till: 789123');
   const [loanModel, setLoanModel] = useState<string>('both'); // weekly & monthly
 
+  // Founding Chairperson / Admin Details
+  const [chairpersonName, setChairpersonName] = useState<string>('');
+  const [chairpersonPhone, setChairpersonPhone] = useState<string>('+254');
+  const [chairpersonEmail, setChairpersonEmail] = useState<string>('');
+  const [chairpersonPassword, setChairpersonPassword] = useState<string>('');
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [passwordError, setPasswordError] = useState<string>('');
+
   useEffect(() => {
     if (!categoryOptions.includes(category) && categoryOptions[0]) setCategory(categoryOptions[0]);
   }, [category, categoryOptions]);
@@ -41,6 +53,12 @@ export const NewChamaModal: React.FC<NewChamaModalProps> = ({ isOpen, onClose })
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+
+    if (chairpersonPassword && chairpersonPassword.length < 8) {
+      setPasswordError('Chairperson password must be at least 8 characters long.');
+      return;
+    }
+    setPasswordError('');
 
     createChama({
       name: name.trim(),
@@ -54,6 +72,10 @@ export const NewChamaModal: React.FC<NewChamaModalProps> = ({ isOpen, onClose })
         planTier === 'Growth' ? 1500 : 
         planTier === 'Professional' ? 2500 : 5000,
       mpesaPaybillOrTill: mpesaPaybill,
+      chairpersonName: chairpersonName.trim() || undefined,
+      chairpersonPhone: chairpersonPhone.trim() || undefined,
+      chairpersonEmail: chairpersonEmail.trim() || undefined,
+      chairpersonPassword: chairpersonPassword.trim() || undefined,
     });
 
     onClose();
@@ -162,6 +184,89 @@ export const NewChamaModal: React.FC<NewChamaModalProps> = ({ isOpen, onClose })
                 <option value="Enterprise">Enterprise (Custom Quote, Over 50 members)</option>
               </select>
             </div>
+          </div>
+
+          {/* Founding Chairperson Account Details & Password */}
+          <div className="pt-2 border-t border-slate-100 space-y-3">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+              <UserCheck className="w-4 h-4 text-emerald-600" />
+              <span>Founding Chairperson (Tenant Admin Account)</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Chairperson Name</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Jane Mwende"
+                  value={chairpersonName}
+                  onChange={(e) => setChairpersonName(e.target.value)}
+                  className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Phone Number</label>
+                <input
+                  type="tel"
+                  placeholder="+254700000001"
+                  value={chairpersonPhone}
+                  onChange={(e) => setChairpersonPhone(e.target.value)}
+                  className="w-full text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">Email Address</label>
+                <input
+                  type="email"
+                  placeholder="chair@chama.ke"
+                  value={chairpersonEmail}
+                  onChange={(e) => setChairpersonEmail(e.target.value)}
+                  className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-emerald-600" />
+                    <span>Initial Password</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-[10px] text-slate-500 hover:text-slate-800 flex items-center gap-0.5"
+                  >
+                    {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    <span>{showPassword ? 'Hide' : 'Show'}</span>
+                  </button>
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  minLength={8}
+                  autoComplete="new-password"
+                  placeholder="Min. 8 characters"
+                  value={chairpersonPassword}
+                  onChange={(e) => {
+                    setChairpersonPassword(e.target.value);
+                    if (passwordError) setPasswordError('');
+                  }}
+                  className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                />
+              </div>
+            </div>
+
+            {passwordError && (
+              <div className="p-2 bg-rose-50 border border-rose-200 rounded-xl text-[11px] text-rose-700 font-medium">
+                {passwordError}
+              </div>
+            )}
+            <p className="text-[10px] text-slate-500">
+              🔒 The chairperson can sign into ChamaSmart immediately with this password. Stored securely as a salted PBKDF2 hash.
+            </p>
           </div>
 
           <div className="bg-gradient-to-r from-rose-50/50 to-amber-50/40 p-3 rounded-xl border border-rose-100 text-xs text-slate-600 space-y-1">

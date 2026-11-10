@@ -81,6 +81,7 @@ export function initDatabase() {
       initial_member_count INTEGER NOT NULL DEFAULT 15,
       plan_tier TEXT NOT NULL DEFAULT 'Basic',
       status TEXT NOT NULL DEFAULT 'pending_approval',
+      applicant_password_hash TEXT,
       submitted_at TEXT NOT NULL,
       reviewed_at TEXT,
       rejection_reason TEXT,
@@ -124,6 +125,12 @@ export function initDatabase() {
       FOREIGN KEY (chama_id) REFERENCES chamas (id) ON DELETE CASCADE
     );
   `);
+
+  try {
+    db.exec('ALTER TABLE registration_applications ADD COLUMN applicant_password_hash TEXT');
+  } catch {
+    // Column already exists on upgraded databases
+  }
 
   db.prepare(`
     INSERT OR IGNORE INTO system_settings (key, value) VALUES ('chama_categories', ?)
@@ -352,6 +359,7 @@ export function generateSqlDump(): { filePath: string; sqlContent: string; stats
   sql += `  initial_member_count INT NOT NULL DEFAULT 15,\n`;
   sql += `  plan_tier VARCHAR(64) NOT NULL DEFAULT 'Basic',\n`;
   sql += `  status VARCHAR(32) NOT NULL DEFAULT 'pending_approval',\n`;
+  sql += `  applicant_password_hash VARCHAR(255),\n`;
   sql += `  submitted_at TIMESTAMP NOT NULL,\n`;
   sql += `  reviewed_at TIMESTAMP,\n`;
   sql += `  rejection_reason TEXT,\n`;

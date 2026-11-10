@@ -13,6 +13,7 @@ import {
   Role, 
   PortalType, 
   FundType, 
+  Meeting,
   MeetingAttendance,
   InvestmentAsset,
   PaymentMethod,
@@ -30,6 +31,7 @@ interface ChamaContextType {
   currentUser: Member | null;
   isAuthenticated: boolean;
   isSuperAdminLoggedIn: boolean;
+  isDbSyncing: boolean;
   userChamas: Chama[];
   currentOfficialRole: Role;
   searchQuery: string;
@@ -55,7 +57,12 @@ interface ChamaContextType {
   assignMemberRole: (memberId: string, newRole: Role) => { success: boolean; message: string };
   
   // Actions
-  createChama: (chama: Partial<Chama>) => void;
+  createChama: (chama: Partial<Chama> & {
+    chairpersonName?: string;
+    chairpersonPhone?: string;
+    chairpersonEmail?: string;
+    chairpersonPassword?: string;
+  }) => void;
   processMpesaPayment: (params: {
     amount: number;
     phone: string;
@@ -97,6 +104,17 @@ interface ChamaContextType {
   
   saveMeetingAttendance: (meetingId: string, attendance: MeetingAttendance[]) => void;
   saveMeetingMinutes: (meetingId: string, minutes: string, actionPoints: string[]) => void;
+  scheduleMeeting: (params: {
+    title: string;
+    date: string;
+    time: string;
+    venue: string;
+    isVirtual: boolean;
+    virtualLink?: string;
+    agendaItems: string[];
+  }) => { success: boolean; meetingId: string; message: string };
+  updateMeetingStatus: (meetingId: string, status: 'upcoming' | 'in_progress' | 'completed') => void;
+  deleteMeeting: (meetingId: string) => { success: boolean; message: string };
   
   castVote: (electionId: string, positionId: string, candidateId: string) => void;
   
@@ -109,7 +127,13 @@ interface ChamaContextType {
   
   // Database SQL Dump & Direct Storage
   exportSqlDump: () => Promise<{ success: boolean; dumpSql?: string; filename?: string; message: string }>;
-  isDbSyncing: boolean;
+  // Super Admin Full Control Capabilities
+  editChama: (chamaId: string, updates: Partial<Chama>) => { success: boolean; message: string };
+  deleteChama: (chamaId: string) => { success: boolean; message: string };
+  editMember: (chamaId: string, memberId: string, updates: Partial<Member>) => { success: boolean; message: string };
+  removeMember: (chamaId: string, memberId: string) => { success: boolean; message: string };
+  seedCleanScopedData: () => { success: boolean; message: string };
+  adjustSubscriptionTier: (chamaId: string, tier: 'Starter' | 'Basic' | 'Growth' | 'Professional' | 'Enterprise') => { success: boolean; message: string };
 
   resetToDefaults: () => void;
 }
@@ -1125,6 +1149,115 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  // Schedule a new Meeting with Agenda & initialize Attendance Register
+  const scheduleMeeting = (params: {
+    title: string;
+    date: string;
+    time: string;
+    venue: string;
+    isVirtual: boolean;
+    virtualLink?: string;
+    agendaItems: string[];
+  }) => {
+    const meetingId = `mtg-${Date.now()}`;
+    updateActiveChama(chama => {
+      const initialAttendance: MeetingAttendance[] = (chama.members || []).map(m => ({
+        memberId: m.id,
+        memberName: m.name,
+        status: 'present',
+        fineAmount: 0,
+        finePaid: true,
+      }));
+
+      const newMeeting: Meeting = {
+        id: meetingId,
+        chamaId: chama.id,
+        title: params.title.trim(),
+        date: params.date,
+        time: params.time,
+        venue: params.venue.trim(),
+        isVirtual: params.isVirtual,
+        virtualLink: params.virtualLink?.trim() || undefined,
+        status: 'upcoming',
+        agendaItems: params.agendaItems.filter(item => item.trim().length > 0),
+        attendance: initialAttendance,
+        actionPoints: [],
+      };
+
+      const newAuditLogs = addAuditLog(
+        chama,
+        'MEETING_SCHEDULED',
+        'Meeting Governance',
+        `Scheduled upcoming meeting "${newMeeting.title}" for ${newMeeting.date} at ${newMeeting.time}.`
+      );
+
+      return {
+        ...chama,
+        meetings: [newMeeting, ...(chama.meetings || [])],
+        auditLogs: newAuditLogs,
+      };
+    });
+
+    return {
+      success: true,
+      meetingId,
+      message: `Meeting "${params.title}" successfully scheduled for ${params.date}!`,
+    };
+  };
+
+  // Update Meeting Status
+  const updateMeetingStatus = (meetingId: string, status: 'upcoming' | 'in_progress' | 'completed') => {
+    updateActiveChama(chama => {
+      const updatedMeetings = (chama.meetings || []).map(m => {
+        if (m.id === meetingId) {
+          return { ...m, status };
+        }
+        return m;
+      });
+
+      const newAuditLogs = addAuditLog(
+        chama,
+        'MEETING_STATUS_UPDATED',
+        'Meeting Governance',
+        `Meeting ${meetingId} status changed to ${status}.`
+      );
+
+      return {
+        ...chama,
+        meetings: updatedMeetings,
+        auditLogs: newAuditLogs,
+      };
+    });
+  };
+
+  // Delete / Cancel Meeting
+  const deleteMeeting = (meetingId: string) => {
+    let meetingTitle = '';
+    updateActiveChama(chama => {
+      const target = (chama.meetings || []).find(m => m.id === meetingId);
+      meetingTitle = target ? target.title : meetingId;
+      const updatedMeetings = (chama.meetings || []).filter(m => m.id !== meetingId);
+
+      const newAuditLogs = addAuditLog(
+        chama,
+        'MEETING_CANCELLED',
+        'Meeting Governance',
+        `Meeting "${meetingTitle}" was cancelled/removed.`
+      );
+
+      return {
+        ...chama,
+        meetings: updatedMeetings,
+        auditLogs: newAuditLogs,
+      };
+    });
+
+    return {
+      success: true,
+      message: `Meeting "${meetingTitle}" was successfully cancelled.`,
+    };
+  };
+
   // Cast Vote in Democratic Election
   const castVote = (electionId: string, positionId: string, candidateId: string) => {
     updateActiveChama(chama => {
@@ -1355,6 +1488,7 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         status: 'approved',
         reviewedAt: timestamp,
         superAdminNotes: 'Authorized by Platform Super Admin',
+        chairpersonMemberId: newChairpersonId,
       }),
     }).catch(err => console.error('Error approving application in DB:', err));
 
@@ -1616,9 +1750,20 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Create new Chama (Direct provision fallback)
-  const createChama = (chamaData: Partial<Chama>) => {
+  const createChama = (chamaData: Partial<Chama> & {
+    chairpersonName?: string;
+    chairpersonPhone?: string;
+    chairpersonEmail?: string;
+    chairpersonPassword?: string;
+  }) => {
+    const newChamaId = `chama-${Date.now()}`;
+    const founderMemberId = `mem-founder-${Date.now()}`;
+    const chairName = chamaData.chairpersonName || 'Founding Chairperson';
+    const chairPhone = chamaData.chairpersonPhone || '+254700000001';
+    const chairEmail = chamaData.chairpersonEmail || `${chairName.toLowerCase().replace(/\s+/g, '.')}@newchama.or.ke`;
+
     const newChama: Chama = {
-      id: `chama-${Date.now()}`,
+      id: newChamaId,
       name: chamaData.name || 'New Community Chama',
       category: chamaData.category || 'weekly_savings',
       tagline: chamaData.tagline || 'Together we prosper',
@@ -1652,11 +1797,11 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ],
       members: [
         {
-          id: `mem-founder-${Date.now()}`,
-          chamaId: `chama-${Date.now()}`,
-          name: 'Founding Chairperson',
-          phoneNumber: '+254700000001',
-          email: 'chair@newchama.or.ke',
+          id: founderMemberId,
+          chamaId: newChamaId,
+          name: chairName,
+          phoneNumber: chairPhone,
+          email: chairEmail,
           membershipNumber: 'CS-001',
           joinedDate: new Date().toISOString().split('T')[0],
           role: 'chairperson',
@@ -1680,7 +1825,7 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       auditLogs: [
         {
           id: `aud-init-${Date.now()}`,
-          chamaId: `chama-${Date.now()}`,
+          chamaId: newChamaId,
           timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
           actorName: 'System Administrator',
           actorRole: 'super_admin',
@@ -1694,6 +1839,16 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setAllChamas(prev => [newChama, ...prev]);
     setActiveChamaIdState(newChama.id);
+
+    // Persist to server database including chairperson initial password
+    fetch('/api/db/chamas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...newChama,
+        chairpersonPassword: chamaData.chairpersonPassword,
+      }),
+    }).catch(err => console.error('Error provisioning chama in DB:', err));
   };
 
   const resetToDefaults = () => {
@@ -1752,6 +1907,98 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  // Super Admin CRUD and Configuration Capabilities
+  const editChama = (chamaId: string, updates: Partial<Chama>) => {
+    setAllChamas(prev =>
+      prev.map(c => {
+        if (c.id === chamaId) {
+          const updated = { ...c, ...updates };
+          fetch('/api/db/chamas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updated),
+          }).catch(err => console.error('Error updating chama:', err));
+          return updated;
+        }
+        return c;
+      })
+    );
+    return { success: true, message: `Chama updated successfully.` };
+  };
+
+  const deleteChama = (chamaId: string) => {
+    setAllChamas(prev => {
+      const remaining = prev.filter(c => c.id !== chamaId);
+      if (activeChamaId === chamaId && remaining.length > 0) {
+        setActiveChamaIdState(remaining[0].id);
+      }
+      return remaining;
+    });
+
+    fetch(`/api/db/chamas/${chamaId}`, {
+      method: 'DELETE',
+    }).catch(err => console.error('Error deleting chama:', err));
+
+    return { success: true, message: `Chama workspace removed from database.` };
+  };
+
+  const adjustSubscriptionTier = (chamaId: string, tier: 'Starter' | 'Basic' | 'Growth' | 'Professional' | 'Enterprise') => {
+    const feeMap = {
+      Starter: 0,
+      Basic: 500,
+      Growth: 1500,
+      Professional: 2500,
+      Enterprise: 5000,
+    };
+    return editChama(chamaId, {
+      planTier: tier,
+      monthlySubscriptionKsh: feeMap[tier],
+    });
+  };
+
+  const editMember = (chamaId: string, memberId: string, updates: Partial<Member>) => {
+    setAllChamas(prev =>
+      prev.map(c => {
+        if (c.id === chamaId) {
+          const updatedMembers = c.members.map(m => m.id === memberId ? { ...m, ...updates } : m);
+          const updatedChama = { ...c, members: updatedMembers };
+          fetch('/api/db/chamas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedChama),
+          }).catch(err => console.error('Error updating member:', err));
+          return updatedChama;
+        }
+        return c;
+      })
+    );
+    return { success: true, message: `Member details updated successfully.` };
+  };
+
+  const removeMember = (chamaId: string, memberId: string) => {
+    setAllChamas(prev =>
+      prev.map(c => {
+        if (c.id === chamaId) {
+          const updatedMembers = c.members.filter(m => m.id !== memberId);
+          const updatedChama = { ...c, members: updatedMembers };
+          fetch('/api/db/chamas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedChama),
+          }).catch(err => console.error('Error removing member:', err));
+          return updatedChama;
+        }
+        return c;
+      })
+    );
+    return { success: true, message: `Member removed from workspace.` };
+  };
+
+  const seedCleanScopedData = () => {
+    resetToDefaults();
+    return { success: true, message: 'Scoped tenant records re-seeded clean.' };
+  };
+
   return (
     <ChamaContext.Provider
       value={{
@@ -1782,6 +2029,12 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         reviewRegistrationApplication,
         assignMemberRole,
         createChama,
+        editChama,
+        deleteChama,
+        editMember,
+        removeMember,
+        seedCleanScopedData,
+        adjustSubscriptionTier,
         processMpesaPayment,
         applyForLoan,
         respondGuarantor,
@@ -1793,6 +2046,9 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         advanceMerryGoRound,
         saveMeetingAttendance,
         saveMeetingMinutes,
+        scheduleMeeting,
+        updateMeetingStatus,
+        deleteMeeting,
         castVote,
         addInvestmentAsset,
         addMember,

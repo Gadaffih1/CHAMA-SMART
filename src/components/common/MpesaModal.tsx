@@ -296,7 +296,7 @@ export const MpesaModal: React.FC<MpesaModalProps> = ({
               <div className="pt-2 flex gap-3">
                 <button
                   onClick={onClose}
-                  className="w-full py-2.5 bg-gradient-to-r from-rose-600 via-rose-700 to-amber-600 hover:from-rose-700 hover:to-amber-700 text-white font-bold text-sm rounded-xl transition shadow-md shadow-rose-900/10 cursor-pointer"
+                  className="w-full py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm rounded-xl transition shadow-md shadow-emerald-900/10 cursor-pointer"
                 >
                   Done / Close
                 </button>

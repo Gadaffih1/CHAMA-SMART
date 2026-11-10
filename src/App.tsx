@@ -22,7 +22,7 @@ const MainAppContent: React.FC = () => {
 
   // Once authenticated, route into user's authorized workspace
   return (
-    <div className="min-h-screen flex flex-col bg-[#fff8fa] text-rose-950 selection:bg-rose-500 selection:text-white w-full max-w-full overflow-x-hidden">
+    <div className="min-h-screen flex flex-col bg-[#f4fbf6] text-emerald-950 selection:bg-emerald-600 selection:text-white w-full max-w-full overflow-x-hidden">
       {/* Navigation Header with Profile & Multi-Chama Switcher */}
       <Header />
 
@@ -33,21 +33,21 @@ const MainAppContent: React.FC = () => {
         {activePortal === 'super_admin' && <SuperAdminPortal />}
       </main>
 
-      {/* Authenticated Workspace Footer in Pink & Gold */}
-      <footer className="bg-white/90 border-t border-amber-200/80 mt-auto py-6 text-xs text-rose-900/60 w-full">
+      {/* Authenticated Workspace Footer in Light Green & Emerald */}
+      <footer className="bg-white/95 border-t border-emerald-200/80 mt-auto py-6 text-xs text-emerald-900/70 w-full shadow-2xs">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-rose-600 to-amber-500 text-white flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
+            <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-emerald-600 to-teal-500 text-white flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
               <Coins className="w-3.5 h-3.5" />
             </div>
-            <span className="font-bold text-rose-950">ChamaSmart Gold Edition</span>
-            <span className="text-amber-400">•</span>
-            <span className="text-amber-900/80">Kenya • East Africa Fintech</span>
+            <span className="font-bold text-emerald-950">ChamaSmart Gold Edition</span>
+            <span className="text-emerald-400">•</span>
+            <span className="text-emerald-800/80">Kenya • East Africa Fintech</span>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 text-[11px] text-amber-900/70">
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 text-[11px] text-emerald-800/80">
             <span className="flex items-center gap-1 text-emerald-700 font-semibold">
-              <ShieldCheck className="w-3.5 h-3.5" />
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
               Safaricom Daraja 2.0 Ready
             </span>
             <span>•</span>

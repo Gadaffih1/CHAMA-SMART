@@ -43,6 +43,8 @@ export interface ChamaRegistrationApplication {
   reviewedAt?: string;
   rejectionReason?: string;
   superAdminNotes?: string;
+  applicantPassword?: string;
+  hasPassword?: boolean;
 }
 
 export type FundType = 

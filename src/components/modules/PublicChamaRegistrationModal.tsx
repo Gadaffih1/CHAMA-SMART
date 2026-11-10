@@ -16,7 +16,10 @@ import {
   Clock, 
   Crown, 
   Smartphone, 
-  Info 
+  Info,
+  Lock,
+  Eye,
+  EyeOff 
 } from 'lucide-react';
 import { useChama } from '../../context/ChamaContext';
 import { ChamaCategory } from '../../types';
@@ -37,6 +40,10 @@ export const PublicChamaRegistrationModal: React.FC<PublicChamaRegistrationModal
   const [applicantChairpersonName, setApplicantChairpersonName] = useState('');
   const [applicantPhone, setApplicantPhone] = useState('+254');
   const [applicantEmail, setApplicantEmail] = useState('');
+  const [applicantPassword, setApplicantPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
   const [initialMemberCount, setInitialMemberCount] = useState(15);
   const [planTier, setPlanTier] = useState<'Starter' | 'Basic' | 'Growth' | 'Professional' | 'Enterprise'>('Basic');
 
@@ -53,6 +60,16 @@ export const PublicChamaRegistrationModal: React.FC<PublicChamaRegistrationModal
     e.preventDefault();
     if (!chamaName.trim() || !applicantChairpersonName.trim()) return;
 
+    if (!applicantPassword || applicantPassword.length < 8) {
+      setPasswordError('Chairperson password must be at least 8 characters long.');
+      return;
+    }
+    if (applicantPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match. Please re-enter identical passwords.');
+      return;
+    }
+    setPasswordError('');
+
     const res = submitRegistrationApplication({
       chamaName: chamaName.trim(),
       category,
@@ -63,6 +80,7 @@ export const PublicChamaRegistrationModal: React.FC<PublicChamaRegistrationModal
       applicantChairpersonName: applicantChairpersonName.trim(),
       applicantPhone: applicantPhone.trim(),
       applicantEmail: applicantEmail.trim() || `${applicantChairpersonName.toLowerCase().replace(/\s+/g, '.')}@chama.ke`,
+      applicantPassword,
       initialMemberCount: Number(initialMemberCount),
       planTier,
     });
@@ -79,6 +97,9 @@ export const PublicChamaRegistrationModal: React.FC<PublicChamaRegistrationModal
     setApplicantChairpersonName('');
     setApplicantPhone('+254');
     setApplicantEmail('');
+    setApplicantPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
     setRegistrationNumber('');
     onClose();
   };
@@ -306,6 +327,67 @@ export const PublicChamaRegistrationModal: React.FC<PublicChamaRegistrationModal
                   />
                 </div>
               </div>
+
+              {/* Password Setting for Chairperson */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-amber-200/90 flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-amber-400" />
+                      <span>Initial Chairperson Password *</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="text-[10px] text-amber-300/80 hover:text-amber-200 flex items-center gap-0.5"
+                    >
+                      {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      <span>{showPassword ? 'Hide' : 'Show'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    placeholder="At least 8 characters"
+                    value={applicantPassword}
+                    onChange={(e) => {
+                      setApplicantPassword(e.target.value);
+                      if (passwordError) setPasswordError('');
+                    }}
+                    className="w-full text-xs px-3.5 py-2.5 bg-[#120511] border border-amber-500/30 rounded-xl text-white placeholder-rose-300/30 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-amber-200/90 block mb-1">
+                    Confirm Password *
+                  </label>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    placeholder="Re-enter identical password"
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      if (passwordError) setPasswordError('');
+                    }}
+                    className="w-full text-xs px-3.5 py-2.5 bg-[#120511] border border-amber-500/30 rounded-xl text-white placeholder-rose-300/30 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                </div>
+              </div>
+
+              {passwordError && (
+                <div className="p-2.5 bg-rose-950/80 border border-rose-500/50 rounded-xl text-[11px] text-rose-200">
+                  {passwordError}
+                </div>
+              )}
+              <p className="text-[10px] text-rose-300/70">
+                🔒 Stored as a salted PBKDF2 hash. When Platform Super Admin approves this application, this password activates your Chama Admin sign-in access.
+              </p>
             </div>
 
             {/* Plan Tier Selection */}

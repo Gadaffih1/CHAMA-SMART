@@ -22,12 +22,14 @@ import {
   Plus, 
   DollarSign, 
   Lock, 
-  Send 
+  Send,
+  Calendar
 } from 'lucide-react';
 import { useChama } from '../../context/ChamaContext';
 import { DualAuthModal } from '../modules/DualAuthModal';
 import { TableBankingSession } from '../modules/TableBankingSession';
 import { InvestmentManager } from '../modules/InvestmentManager';
+import { MeetingScheduler } from '../modules/MeetingScheduler';
 import { MeetingGovernance } from '../modules/MeetingGovernance';
 import { AuditLogViewer } from '../modules/AuditLogViewer';
 import { FundType } from '../../types';
@@ -48,7 +50,7 @@ export const OfficialsPortal: React.FC = () => {
   } = useChama();
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'members_roles' | 'contributions' | 'loans' | 'table_banking' | 'funds' | 'investments' | 'governance' | 'audit'
+    'overview' | 'members_roles' | 'contributions' | 'loans' | 'table_banking' | 'funds' | 'investments' | 'scheduler' | 'governance' | 'audit'
   >('overview');
 
   // Fund Transfer State
@@ -160,25 +162,25 @@ export const OfficialsPortal: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Officials Top Banner with Role Switcher in Pink & Gold */}
-      <div className="bg-white rounded-2xl border border-amber-200/90 shadow-xs p-4 sm:p-6 w-full overflow-hidden">
+      <div className="bg-white rounded-2xl border border-emerald-200/90 shadow-xs p-4 sm:p-6 w-full overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-600 via-pink-600 to-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
-                <ShieldCheck className="w-4 h-4 text-amber-100" />
+              <span className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-600 to-emerald-500 text-white flex items-center justify-center shadow-xs shrink-0">
+                <ShieldCheck className="w-4 h-4 text-emerald-100" />
               </span>
-              <h2 className="text-lg sm:text-xl font-bold text-rose-950">
+              <h2 className="text-lg sm:text-xl font-bold text-emerald-950">
                 {activeChama.name} — Leadership Desk
               </h2>
             </div>
-            <p className="text-xs text-amber-800/70">
+            <p className="text-xs text-emerald-800/80">
               Role-based management, multi-authorization financial checks, lending oversight and regulatory audit
             </p>
           </div>
 
-          {/* Quick Role Switcher Pill in Pink & Gold */}
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 bg-rose-50/60 p-1.5 sm:p-2 rounded-xl border border-amber-200">
-            <span className="text-[11px] font-bold text-amber-900/80 pl-1">Acting As:</span>
+          {/* Quick Role Switcher Pill in Light Green & Emerald */}
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 bg-emerald-50/70 p-1.5 sm:p-2 rounded-xl border border-emerald-200">
+            <span className="text-[11px] font-bold text-emerald-950 pl-1">Acting As:</span>
             {(['chairperson', 'treasurer', 'secretary', 'loan_officer'] as const).map((r) => (
               <button
                 key={r}
@@ -186,8 +188,8 @@ export const OfficialsPortal: React.FC = () => {
                 onClick={() => setCurrentOfficialRole(r)}
                 className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs font-bold capitalize transition cursor-pointer whitespace-nowrap ${
                   currentOfficialRole === r
-                    ? 'bg-gradient-to-r from-rose-600 via-pink-600 to-amber-500 text-white shadow-xs'
-                    : 'text-rose-950 hover:bg-rose-100/70'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs'
+                    : 'text-emerald-950 hover:bg-emerald-100/70'
                 }`}
               >
                 {r.replace('_', ' ')}
@@ -196,8 +198,8 @@ export const OfficialsPortal: React.FC = () => {
           </div>
         </div>
 
-        {/* Tab Navigation in Pink & Gold - Responsive Horizontal Scroll with Zero Overlap */}
-        <div className="flex gap-2 overflow-x-auto pt-4 pb-2 border-t border-rose-100 mt-6 w-full no-scrollbar">
+        {/* Tab Navigation in Light Green & Emerald - Responsive Horizontal Scroll with Zero Overlap */}
+        <div className="flex gap-2 overflow-x-auto pt-4 pb-2 border-t border-emerald-100 mt-6 w-full no-scrollbar">
           {[
             { id: 'overview', label: 'Financial Overview', icon: Wallet },
             { id: 'members_roles', label: `Members & Roles (${activeChama.members.length})`, icon: Users },
@@ -206,7 +208,8 @@ export const OfficialsPortal: React.FC = () => {
             { id: 'table_banking', label: 'Table Banking Session', icon: DollarSign },
             { id: 'funds', label: `Funds & Dual-Auth (${pendingApprovalsCount})`, icon: Lock },
             { id: 'investments', label: 'Investments & Assets', icon: TrendingUp },
-            { id: 'governance', label: 'Meetings & Elections', icon: Vote },
+            { id: 'scheduler', label: `Meeting Scheduler (${activeChama.meetings?.length || 0})`, icon: Calendar },
+            { id: 'governance', label: 'Democratic Elections', icon: Vote },
             { id: 'audit', label: 'Audit Trail & Balance Sheet', icon: FileCheck2 },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -218,8 +221,8 @@ export const OfficialsPortal: React.FC = () => {
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`py-2 px-3 sm:px-3.5 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 transition cursor-pointer ${
                   isActive
-                    ? 'bg-gradient-to-r from-rose-600 via-pink-600 to-amber-500 text-white shadow-xs'
-                    : 'bg-rose-50/40 text-rose-900 hover:bg-amber-50 border border-amber-200/60'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs'
+                    : 'bg-emerald-50/50 text-emerald-950 hover:bg-emerald-100/70 border border-emerald-200/80'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5 shrink-0" />
@@ -231,7 +234,7 @@ export const OfficialsPortal: React.FC = () => {
       </div>
 
       {feedbackMsg && (
-        <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs font-semibold text-amber-900 flex items-center gap-2">
+        <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-semibold text-emerald-900 flex items-center gap-2">
           <Check className="w-4 h-4 text-emerald-600" />
           <span>{feedbackMsg}</span>
         </div>
@@ -240,24 +243,24 @@ export const OfficialsPortal: React.FC = () => {
       {/* TAB 1: FINANCIAL OVERVIEW */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* High-Level Metric Tiles in Pink & Gold */}
+          {/* High-Level Metric Tiles in Light Green & Emerald */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-5 rounded-2xl border border-rose-200/80 shadow-xs hover:border-amber-400/50 transition">
-              <span className="text-xs font-semibold text-rose-900/70">Total Liquid Reserves</span>
-              <div className="text-2xl font-black text-rose-950 font-mono-num mt-1">
+            <div className="bg-white p-5 rounded-2xl border border-emerald-200/80 shadow-xs hover:border-emerald-400/50 transition">
+              <span className="text-xs font-semibold text-emerald-900/70">Total Liquid Reserves</span>
+              <div className="text-2xl font-black text-emerald-950 font-mono-num mt-1">
                 KSh {totalPooledCapital.toLocaleString()}
               </div>
-              <span className="text-[11px] text-amber-700 font-bold mt-0.5 block">
+              <span className="text-[11px] text-emerald-700 font-bold mt-0.5 block">
                 Across 6 segregated funds
               </span>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl border border-rose-200/80 shadow-xs hover:border-amber-400/50 transition">
-              <span className="text-xs font-semibold text-rose-900/70">Active Outstanding Loans</span>
-              <div className="text-2xl font-black text-amber-800 font-mono-num mt-1">
+            <div className="bg-white p-5 rounded-2xl border border-emerald-200/80 shadow-xs hover:border-emerald-400/50 transition">
+              <span className="text-xs font-semibold text-emerald-900/70">Active Outstanding Loans</span>
+              <div className="text-2xl font-black text-emerald-950 font-mono-num mt-1">
                 KSh {totalActiveLoans.toLocaleString()}
               </div>
-              <span className="text-[11px] text-rose-600 font-bold mt-0.5 block">
+              <span className="text-[11px] text-teal-700 font-bold mt-0.5 block">
                 Revolving principal & interest
               </span>
             </div>
@@ -668,10 +671,13 @@ export const OfficialsPortal: React.FC = () => {
       {/* TAB 6: INVESTMENTS */}
       {activeTab === 'investments' && <InvestmentManager />}
 
-      {/* TAB 7: GOVERNANCE & MEETINGS */}
+      {/* TAB 7: MEETING SCHEDULER & ATTENDANCE */}
+      {activeTab === 'scheduler' && <MeetingScheduler />}
+
+      {/* TAB 8: GOVERNANCE & ELECTIONS */}
       {activeTab === 'governance' && <MeetingGovernance />}
 
-      {/* TAB 8: AUDIT & FINANCIAL STATEMENTS */}
+      {/* TAB 9: AUDIT & FINANCIAL STATEMENTS */}
       {activeTab === 'audit' && <AuditLogViewer />}
 
       {/* Fund Transfer Modal */}

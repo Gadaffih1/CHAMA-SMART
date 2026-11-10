@@ -9,9 +9,9 @@ import fs from 'fs';
 import { db, initDatabase, generateSqlDump, DUMP_DIR } from './src/server/db.ts';
 import {
   allChamas, allMembers, attachSession, authenticateMember, authenticateSuperAdmin, clearSessionCookie,
-  createSession, currentSessionToken, destroySession, findMemberById, initAuthTables, initSuperAdminCredential,
+  createSession, currentSessionToken, destroySession, findMemberById, hashPassword, initAuthTables, initSuperAdminCredential,
   migrateEmbeddedPasswordHashes, normalizePhone, removeOrphanCredentials, requireAuth, requireSuperAdmin,
-  resetFailureTracking, revokeAllSessions, roleInChama, sameOriginGuard, setCredential, setSessionCookie,
+  resetFailureTracking, revokeAllSessions, roleInChama, sameOriginGuard, setCredential, setCredentialWithHash, setSessionCookie,
   stripSecrets, validatePassword,
 } from './src/server/auth.ts';
 import type { Chama, Member } from './src/types/index.ts';
@@ -203,7 +203,7 @@ async function startServer() {
       clean.county,
       clean.country || 'Kenya',
       clean.registrationNumber || '',
-      clean.formedDate,
+      clean.formedDate || new Date().toISOString().slice(0, 10),
       clean.currency || 'KSh',
       clean.planTier || 'Basic',
       clean.monthlySubscriptionKsh || 500,
@@ -252,11 +252,19 @@ async function startServer() {
   // Provision a Chama (Super Admin only)
   app.post('/api/db/chamas', requireSuperAdmin, (req, res) => {
     try {
-      const chama = req.body;
+      const payload = req.body ?? {};
+      const { chairpersonPassword, ...chama } = payload;
       if (!chama || !chama.id || !chama.name) {
         return res.status(400).json({ error: 'Invalid chama payload' });
       }
       saveChamaRow(chama);
+      const chairMember = chama.members?.find((m: any) => m.role === 'chairperson') || chama.members?.[0];
+      if (chairMember && chairpersonPassword) {
+        const problem = validatePassword(chairpersonPassword);
+        if (!problem) {
+          setCredential(chairMember.id, chairpersonPassword);
+        }
+      }
       generateSqlDump();
       res.json({ success: true, chamaId: chama.id });
     } catch (err: any) {
@@ -358,6 +366,7 @@ async function startServer() {
         initialMemberCount: r.initial_member_count,
         planTier: r.plan_tier,
         status: r.status,
+        hasPassword: !!r.applicant_password_hash,
         submittedAt: r.submitted_at,
         reviewedAt: r.reviewed_at,
         rejectionReason: r.rejection_reason,
@@ -383,11 +392,22 @@ async function startServer() {
       if (!id || !chamaName || !category || !county || !applicantChairpersonName || !applicantPhone) {
         return res.status(400).json({ error: 'Missing required application fields.' });
       }
+
+      let applicantPasswordHash: string | null = null;
+      const rawPassword = appData.password ?? appData.applicantPassword;
+      if (rawPassword) {
+        const problem = validatePassword(rawPassword);
+        if (problem) {
+          return res.status(400).json({ error: problem });
+        }
+        applicantPasswordHash = hashPassword(rawPassword);
+      }
+
       const initialMemberCount = Math.min(Math.max(Number(appData.initialMemberCount) || 15, 1), 100000);
 
       const result = db.prepare(`
-        INSERT OR IGNORE INTO registration_applications (id, chama_name, category, tagline, county, country, registration_number, applicant_chairperson_name, applicant_phone, applicant_email, initial_member_count, plan_tier, status, submitted_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_approval', ?, CURRENT_TIMESTAMP)
+        INSERT OR IGNORE INTO registration_applications (id, chama_name, category, tagline, county, country, registration_number, applicant_chairperson_name, applicant_phone, applicant_email, initial_member_count, plan_tier, status, applicant_password_hash, submitted_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_approval', ?, ?, CURRENT_TIMESTAMP)
       `).run(
         id,
         chamaName,
@@ -401,6 +421,7 @@ async function startServer() {
         text(appData.applicantEmail),
         initialMemberCount,
         ['Starter', 'Basic', 'Growth', 'Professional', 'Enterprise'].includes(appData.planTier) ? appData.planTier : 'Basic',
+        applicantPasswordHash,
         text(appData.submittedAt, 40) || new Date().toISOString().replace('T', ' ').substring(0, 16)
       );
       if (result.changes === 0) return res.status(409).json({ error: 'Application already exists.' });
@@ -416,7 +437,7 @@ async function startServer() {
   app.patch('/api/db/applications/:id', requireSuperAdmin, (req, res) => {
     try {
       const { id } = req.params;
-      const { status, reviewedAt, rejectionReason, superAdminNotes } = req.body;
+      const { status, reviewedAt, rejectionReason, superAdminNotes, chairpersonMemberId, chairpersonPassword } = req.body ?? {};
 
       const stmt = db.prepare(`
         UPDATE registration_applications 
@@ -425,6 +446,22 @@ async function startServer() {
       `);
 
       stmt.run(status, reviewedAt || null, rejectionReason || null, superAdminNotes || null, id);
+
+      // If approved and chairpersonMemberId provided, activate the chairperson's credentials
+      if (status === 'approved' && chairpersonMemberId) {
+        if (chairpersonPassword) {
+          const problem = validatePassword(chairpersonPassword);
+          if (!problem) {
+            setCredential(chairpersonMemberId, chairpersonPassword);
+          }
+        } else {
+          const row = db.prepare('SELECT applicant_password_hash FROM registration_applications WHERE id = ?').get(id) as { applicant_password_hash?: string | null } | undefined;
+          if (row?.applicant_password_hash) {
+            setCredentialWithHash(chairpersonMemberId, row.applicant_password_hash);
+          }
+        }
+      }
+
       generateSqlDump();
       res.json({ success: true, id });
     } catch (err: any) {
