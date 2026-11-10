@@ -19,7 +19,10 @@ import {
   PaymentMethod,
   InterestMethod,
   ChamaRegistrationApplication,
-  DEFAULT_CHAMA_CATEGORIES
+  DEFAULT_CHAMA_CATEGORIES,
+  SubscriptionTier,
+  DEFAULT_SUBSCRIPTION_TIERS,
+  SubscriptionBill
 } from '../types';
 import { INITIAL_CHAMAS } from '../data/initialData';
 
@@ -133,7 +136,17 @@ interface ChamaContextType {
   editMember: (chamaId: string, memberId: string, updates: Partial<Member>) => { success: boolean; message: string };
   removeMember: (chamaId: string, memberId: string) => { success: boolean; message: string };
   seedCleanScopedData: () => { success: boolean; message: string };
-  adjustSubscriptionTier: (chamaId: string, tier: 'Starter' | 'Basic' | 'Growth' | 'Professional' | 'Enterprise') => { success: boolean; message: string };
+  adjustSubscriptionTier: (chamaId: string, tier: 'Starter' | 'Basic' | 'Growth' | 'Professional' | 'Enterprise' | string) => { success: boolean; message: string };
+
+  // Tenant Status & Subscription Billing
+  subscriptionTiers: SubscriptionTier[];
+  updateSubscriptionTiers: (tiers: SubscriptionTier[]) => { success: boolean; message: string };
+  systemTillNumber: string;
+  setSystemTillNumber: (till: string) => { success: boolean; message: string };
+  setChamaStatus: (chamaId: string, status: 'active' | 'suspended' | 'deactivated', reason?: string) => { success: boolean; message: string };
+  pushSubscriptionBill: (chamaId: string, bill: { amount: number; billingPeriod: string; dueDate: string; systemTillNumber?: string; reminderNote?: string }) => { success: boolean; message: string; billId: string };
+  updateTenantBilling: (chamaId: string, updates: { systemTillNumber?: string; cashReceived?: number; debtPending?: number; reminderNote?: string }) => { success: boolean; message: string };
+  recordSubscriptionPayment: (chamaId: string, billId: string | undefined, amount: number, mpesaReceipt: string) => { success: boolean; message: string };
 
   resetToDefaults: () => void;
 }
@@ -207,6 +220,26 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isDbSyncing, setIsDbSyncing] = useState<boolean>(false);
   const [dbLoaded, setDbLoaded] = useState<boolean>(false);
+
+  // Platform System Till Account Number & Commercial Tiers
+  const [systemTillNumber, setSystemTillNumberState] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('chamasmart_system_till');
+      if (saved) return saved;
+    } catch {}
+    return '589214';
+  });
+
+  const [subscriptionTiers, setSubscriptionTiersState] = useState<SubscriptionTier[]>(() => {
+    try {
+      const saved = localStorage.getItem('chamasmart_subscription_tiers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_SUBSCRIPTION_TIERS;
+  });
 
   const isAuthenticated = currentUser !== null || isSuperAdminLoggedIn;
 
@@ -1942,18 +1975,248 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return { success: true, message: `Chama workspace removed from database.` };
   };
 
-  const adjustSubscriptionTier = (chamaId: string, tier: 'Starter' | 'Basic' | 'Growth' | 'Professional' | 'Enterprise') => {
-    const feeMap = {
+  const adjustSubscriptionTier = (chamaId: string, tier: 'Starter' | 'Basic' | 'Growth' | 'Professional' | 'Enterprise' | string) => {
+    const matchedTier = subscriptionTiers.find(t => t.id === tier || t.name === tier);
+    const feeMap: Record<string, number> = {
       Starter: 0,
       Basic: 500,
       Growth: 1500,
       Professional: 2500,
       Enterprise: 5000,
     };
+    const fee = matchedTier ? matchedTier.monthlyFeeKsh : (feeMap[tier] ?? 1000);
     return editChama(chamaId, {
-      planTier: tier,
-      monthlySubscriptionKsh: feeMap[tier],
+      planTier: tier as any,
+      monthlySubscriptionKsh: fee,
     });
+  };
+
+  const setChamaStatus = (chamaId: string, status: 'active' | 'suspended' | 'deactivated', reason?: string) => {
+    const target = allChamas.find(c => c.id === chamaId);
+    if (!target) return { success: false, message: 'Chama workspace not found.' };
+
+    const statusAuditLog = {
+      id: `audit-status-${Date.now()}`,
+      chamaId,
+      timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      actorName: 'Platform Super Admin',
+      actorRole: 'super_admin' as Role,
+      action: `CHAMA_${status.toUpperCase()}`,
+      module: 'Tenant Lifecycle',
+      details: `Workspace status changed to ${status.toUpperCase()}${reason ? `. Reason: ${reason}` : ''}`,
+      severity: status === 'active' ? ('info' as const) : ('critical' as const),
+    };
+
+    const updated: Chama = {
+      ...target,
+      status,
+      statusReason: reason || (status === 'suspended' ? 'Administrative / Subscription Hold' : status === 'deactivated' ? 'Workspace Deactivated' : ''),
+      auditLogs: [statusAuditLog, ...(target.auditLogs || [])],
+    };
+
+    setAllChamas(prev => prev.map(c => c.id === chamaId ? updated : c));
+
+    fetch('/api/db/chamas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    }).catch(err => console.error('Error updating chama status:', err));
+
+    return { 
+      success: true, 
+      message: `Chama "${target.name}" has been ${status.toUpperCase()}.${reason ? ` Reason: ${reason}` : ''}` 
+    };
+  };
+
+  const updateSubscriptionTiers = (tiers: SubscriptionTier[]) => {
+    setSubscriptionTiersState(tiers);
+    try {
+      localStorage.setItem('chamasmart_subscription_tiers', JSON.stringify(tiers));
+    } catch {}
+
+    fetch('/api/db/settings/subscription_tiers', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tiers),
+    }).catch(err => console.error('Error saving subscription tiers:', err));
+
+    return { success: true, message: 'Commercial subscription tiers updated successfully.' };
+  };
+
+  const setSystemTillNumber = (till: string) => {
+    const cleanTill = till.trim();
+    setSystemTillNumberState(cleanTill);
+    try {
+      localStorage.setItem('chamasmart_system_till', cleanTill);
+    } catch {}
+
+    fetch('/api/db/settings/system_till_number', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cleanTill),
+    }).catch(err => console.error('Error saving system till number:', err));
+
+    return { success: true, message: `System Till Account Number updated to ${cleanTill}.` };
+  };
+
+  const pushSubscriptionBill = (
+    chamaId: string, 
+    bill: { amount: number; billingPeriod: string; dueDate: string; systemTillNumber?: string; reminderNote?: string }
+  ) => {
+    const target = allChamas.find(c => c.id === chamaId);
+    if (!target) return { success: false, message: 'Chama workspace not found.', billId: '' };
+
+    const chairPerson = target.members.find(m => m.role === 'chairperson');
+    const billId = `bill-${Date.now()}`;
+    const dateStamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const billNumber = `BILL-${dateStamp}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const effectiveTill = bill.systemTillNumber?.trim() || target.systemTillNumber || systemTillNumber;
+    const effectiveNote = bill.reminderNote?.trim() || `Kindly settle your monthly platform subscription fee of KSh ${bill.amount.toLocaleString()} for ${bill.billingPeriod} via System Till ${effectiveTill} on or before ${bill.dueDate}.`;
+
+    const newBill: SubscriptionBill = {
+      id: billId,
+      billNumber,
+      chamaId,
+      chamaName: target.name,
+      chairmanName: chairPerson?.name || 'Chama Chairperson',
+      chairmanPhone: chairPerson?.phoneNumber || '+254700000000',
+      amount: bill.amount,
+      billingPeriod: bill.billingPeriod,
+      dueDate: bill.dueDate,
+      systemTillNumber: effectiveTill,
+      reminderNote: effectiveNote,
+      pushedAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      pushedBy: 'Platform Super Admin',
+      status: 'unpaid',
+    };
+
+    const billAuditLog = {
+      id: `audit-bill-${Date.now()}`,
+      chamaId,
+      timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      actorName: 'Platform Super Admin',
+      actorRole: 'super_admin' as Role,
+      action: 'SUBSCRIPTION_BILL_PUSHED',
+      module: 'Commercial SaaS Billing',
+      details: `Generated bill ${billNumber} of KSh ${bill.amount.toLocaleString()} for ${bill.billingPeriod} sent to Chairman ${newBill.chairmanName} (${newBill.chairmanPhone}) via System Till ${effectiveTill}.`,
+      severity: 'info' as const,
+    };
+
+    const updatedBills = [newBill, ...(target.subscriptionBills || [])];
+    const newDebtPending = (target.debtPending || 0) + bill.amount;
+
+    const updatedChama: Chama = {
+      ...target,
+      systemTillNumber: effectiveTill,
+      debtPending: newDebtPending,
+      reminderNote: effectiveNote,
+      subscriptionBills: updatedBills,
+      auditLogs: [billAuditLog, ...(target.auditLogs || [])],
+    };
+
+    setAllChamas(prev => prev.map(c => c.id === chamaId ? updatedChama : c));
+
+    fetch('/api/db/chamas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedChama),
+    }).catch(err => console.error('Error saving pushed bill:', err));
+
+    return {
+      success: true,
+      message: `Subscription Bill ${billNumber} for KSh ${bill.amount.toLocaleString()} pushed to Chairman ${newBill.chairmanName}.`,
+      billId,
+    };
+  };
+
+  const updateTenantBilling = (
+    chamaId: string, 
+    updates: { systemTillNumber?: string; cashReceived?: number; debtPending?: number; reminderNote?: string }
+  ) => {
+    const target = allChamas.find(c => c.id === chamaId);
+    if (!target) return { success: false, message: 'Chama workspace not found.' };
+
+    const updatedChama: Chama = {
+      ...target,
+      ...(updates.systemTillNumber !== undefined ? { systemTillNumber: updates.systemTillNumber.trim() } : {}),
+      ...(updates.cashReceived !== undefined ? { cashReceived: Number(updates.cashReceived) } : {}),
+      ...(updates.debtPending !== undefined ? { debtPending: Number(updates.debtPending) } : {}),
+      ...(updates.reminderNote !== undefined ? { reminderNote: updates.reminderNote.trim() } : {}),
+    };
+
+    setAllChamas(prev => prev.map(c => c.id === chamaId ? updatedChama : c));
+
+    fetch('/api/db/chamas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedChama),
+    }).catch(err => console.error('Error updating tenant billing:', err));
+
+    return { success: true, message: `Billing settings updated for ${target.name}.` };
+  };
+
+  const recordSubscriptionPayment = (
+    chamaId: string, 
+    billId: string | undefined, 
+    amount: number, 
+    mpesaReceipt: string
+  ) => {
+    const target = allChamas.find(c => c.id === chamaId);
+    if (!target) return { success: false, message: 'Chama workspace not found.' };
+
+    const currentDebt = target.debtPending || 0;
+    const newDebt = Math.max(0, currentDebt - amount);
+    const newCash = (target.cashReceived || 0) + amount;
+
+    const updatedBills = (target.subscriptionBills || []).map(b => {
+      if (b.id === billId || (!billId && b.status === 'unpaid')) {
+        return {
+          ...b,
+          status: 'paid' as const,
+          paidAt: new Date().toISOString().replace('T', ' ').slice(0, 16),
+          mpesaReceipt: mpesaReceipt.trim().toUpperCase(),
+        };
+      }
+      return b;
+    });
+
+    const paymentAuditLog = {
+      id: `audit-pay-${Date.now()}`,
+      chamaId,
+      timestamp: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      actorName: 'Platform Super Admin',
+      actorRole: 'super_admin' as Role,
+      action: 'SUBSCRIPTION_PAYMENT_RECORDED',
+      module: 'Commercial SaaS Billing',
+      details: `Recorded subscription payment of KSh ${amount.toLocaleString()} (M-Pesa Ref: ${mpesaReceipt.toUpperCase()}). Remaining debt: KSh ${newDebt.toLocaleString()}.`,
+      severity: 'info' as const,
+    };
+
+    const newNote = newDebt === 0 
+      ? 'Subscription dues are fully paid. Thank you!' 
+      : `Partial payment of KSh ${amount.toLocaleString()} received. Remaining balance: KSh ${newDebt.toLocaleString()}.`;
+
+    const updatedChama: Chama = {
+      ...target,
+      cashReceived: newCash,
+      debtPending: newDebt,
+      reminderNote: newNote,
+      subscriptionBills: updatedBills,
+      auditLogs: [paymentAuditLog, ...(target.auditLogs || [])],
+    };
+
+    setAllChamas(prev => prev.map(c => c.id === chamaId ? updatedChama : c));
+
+    fetch('/api/db/chamas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedChama),
+    }).catch(err => console.error('Error recording payment:', err));
+
+    return {
+      success: true,
+      message: `Subscription payment of KSh ${amount.toLocaleString()} recorded for ${target.name}.`,
+    };
   };
 
   const editMember = (chamaId: string, memberId: string, updates: Partial<Member>) => {
@@ -2058,6 +2321,14 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         exportSqlDump,
         isDbSyncing,
         resetToDefaults,
+        subscriptionTiers,
+        updateSubscriptionTiers,
+        systemTillNumber,
+        setSystemTillNumber,
+        setChamaStatus,
+        pushSubscriptionBill,
+        updateTenantBilling,
+        recordSubscriptionPayment,
       }}
     >
       {children}

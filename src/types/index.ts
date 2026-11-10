@@ -47,6 +47,45 @@ export interface ChamaRegistrationApplication {
   hasPassword?: boolean;
 }
 
+export interface SubscriptionTier {
+  id: string;
+  name: string;
+  monthlyFeeKsh: number;
+  memberLimitText: string;
+  maxMembers: number;
+  description: string;
+  badgeColor?: string;
+  features?: string[];
+}
+
+export const DEFAULT_SUBSCRIPTION_TIERS: SubscriptionTier[] = [
+  { id: 'Starter', name: 'Starter', monthlyFeeKsh: 0, memberLimitText: 'Free up to 5 members', maxMembers: 5, description: 'Basic record keeping for newly formed tables' },
+  { id: 'Basic', name: 'Basic', monthlyFeeKsh: 500, memberLimitText: 'Up to 10 members', maxMembers: 10, description: '500/- per month for up to 10 members' },
+  { id: 'Growth', name: 'Growth', monthlyFeeKsh: 1500, memberLimitText: 'Up to 30 members', maxMembers: 30, description: '1,500/- per month for up to 30 members' },
+  { id: 'Professional', name: 'Professional', monthlyFeeKsh: 2500, memberLimitText: 'Up to 50 members', maxMembers: 50, description: '2,500/- per month for up to 50 members' },
+  { id: 'Enterprise', name: 'Enterprise', monthlyFeeKsh: 5000, memberLimitText: 'Over 50 members', maxMembers: 9999, description: 'Custom scale and priority SLA for large investment syndicates' },
+];
+
+export interface SubscriptionBill {
+  id: string;
+  billNumber: string;
+  chamaId: string;
+  chamaName: string;
+  chairmanName: string;
+  chairmanPhone: string;
+  amount: number;
+  billingPeriod: string; // e.g. "November 2026"
+  dueDate: string;
+  systemTillNumber: string;
+  reminderNote: string;
+  pushedAt: string;
+  pushedBy: string;
+  status: 'unpaid' | 'paid' | 'overdue' | 'waived';
+  paidAt?: string;
+  mpesaReceipt?: string;
+  notes?: string;
+}
+
 export type FundType = 
   | 'general_savings' 
   | 'loan_revolving' 
@@ -358,4 +397,12 @@ export interface Chama {
   meetings: Meeting[];
   elections: Election[];
   auditLogs: AuditLog[];
+  // Platform Tenant Management & Subscription Billing
+  status?: 'active' | 'suspended' | 'deactivated';
+  statusReason?: string;
+  systemTillNumber?: string;
+  cashReceived?: number;
+  debtPending?: number;
+  reminderNote?: string;
+  subscriptionBills?: SubscriptionBill[];
 }

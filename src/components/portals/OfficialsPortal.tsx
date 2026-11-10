@@ -23,7 +23,11 @@ import {
   DollarSign, 
   Lock, 
   Send,
-  Calendar
+  Calendar,
+  BellRing,
+  Receipt,
+  ShieldAlert,
+  CreditCard
 } from 'lucide-react';
 import { useChama } from '../../context/ChamaContext';
 import { DualAuthModal } from '../modules/DualAuthModal';
@@ -47,6 +51,8 @@ export const OfficialsPortal: React.FC = () => {
     addMember,
     assignMemberRole,
     resetMemberPassword,
+    recordSubscriptionPayment,
+    systemTillNumber,
   } = useChama();
 
   const [activeTab, setActiveTab] = useState<
@@ -75,6 +81,32 @@ export const OfficialsPortal: React.FC = () => {
   // Assign Role State (Chairperson authority)
   const [roleModalMember, setRoleModalMember] = useState<{ id: string; name: string; currentRole: string } | null>(null);
   const [selectedNewRole, setSelectedNewRole] = useState<string>('member');
+
+  // Platform Subscription Payment State
+  const [showSubscriptionPaymentModal, setShowSubscriptionPaymentModal] = useState(false);
+  const [subscriptionPaymentReceipt, setSubscriptionPaymentReceipt] = useState('');
+  const [subscriptionPaymentAmount, setSubscriptionPaymentAmount] = useState<number>(activeChama.debtPending || activeChama.monthlySubscriptionKsh || 1500);
+
+  const handleConfirmSubscriptionPayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subscriptionPaymentReceipt.trim()) {
+      alert('Please enter your M-Pesa transaction reference (e.g. QX981274KL).');
+      return;
+    }
+    const unpaidBill = (activeChama.subscriptionBills || []).find(b => b.status === 'unpaid');
+    const res = recordSubscriptionPayment(
+      activeChama.id,
+      unpaidBill?.id,
+      Number(subscriptionPaymentAmount),
+      subscriptionPaymentReceipt.trim()
+    );
+    if (res.success) {
+      setShowSubscriptionPaymentModal(false);
+      setSubscriptionPaymentReceipt('');
+      setFeedbackMsg(res.message);
+      setTimeout(() => setFeedbackMsg(''), 6000);
+    }
+  };
 
   const [feedbackMsg, setFeedbackMsg] = useState('');
 
@@ -243,6 +275,155 @@ export const OfficialsPortal: React.FC = () => {
       {/* TAB 1: FINANCIAL OVERVIEW */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
+          
+          {/* SUSPENSION OR COMPLIANCE HOLD BANNER (If not active) */}
+          {activeChama.status && activeChama.status !== 'active' && (
+            <div className="p-4 rounded-2xl bg-rose-50 border-2 border-rose-400 text-rose-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+              <div className="flex items-start gap-3">
+                <ShieldAlert className="w-6 h-6 text-rose-600 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-black text-sm uppercase tracking-wide text-rose-900">
+                    Workspace Currently {activeChama.status.toUpperCase()}
+                  </h4>
+                  <p className="text-xs text-rose-800 mt-0.5 leading-relaxed">
+                    {activeChama.statusReason || 'Workspace is on administrative hold. Settle pending platform subscription dues to reactivate member access.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSubscriptionPaymentModal(true)}
+                className="py-2 px-4 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-xs transition cursor-pointer shrink-0"
+              >
+                Clear Dues via System Till
+              </button>
+            </div>
+          )}
+
+          {/* PLATFORM SAAS SUBSCRIPTION & SYSTEM TILL BILLING CARD */}
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-50/70 via-orange-50/60 to-rose-50/60 border-2 border-amber-300 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-amber-700" />
+                  <h3 className="font-black text-slate-900 text-base">
+                    Platform SaaS Subscription & System Till Account
+                  </h3>
+                  <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                    (activeChama.debtPending || 0) > 0
+                      ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                      : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                  }`}>
+                    {(activeChama.debtPending || 0) > 0 ? 'Bill Pending' : 'Subscription Current'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Commercial SaaS workspace license. Platform fees must be paid to the designated System Till Account Number.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowSubscriptionPaymentModal(true)}
+                  className="py-2 px-4 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs rounded-xl shadow-sm border border-amber-300 transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Submit M-Pesa Payment Ref</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Billing Stats Strip */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-amber-200 text-xs">
+              <div className="bg-white p-3 rounded-xl border border-amber-200">
+                <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider">Assigned Plan Tier</span>
+                <span className="text-base font-black text-slate-900 mt-0.5 block">{activeChama.planTier}</span>
+                <span className="text-[11px] text-amber-800 font-semibold font-mono">
+                  KSh {activeChama.monthlySubscriptionKsh?.toLocaleString()}/month
+                </span>
+              </div>
+
+              <div className="bg-white p-3 rounded-xl border border-amber-200">
+                <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider">System Till to Pay</span>
+                <span className="text-base font-black font-mono text-amber-900 mt-0.5 block">
+                  {activeChama.systemTillNumber || systemTillNumber}
+                </span>
+                <span className="text-[10px] text-slate-400 block">Safaricom Buy Goods Till</span>
+              </div>
+
+              <div className="bg-white p-3 rounded-xl border border-amber-200">
+                <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider">Debt Pending (Due)</span>
+                <span className={`text-base font-black font-mono-num mt-0.5 block ${
+                  (activeChama.debtPending || 0) > 0 ? 'text-rose-700' : 'text-emerald-700'
+                }`}>
+                  KSh {(activeChama.debtPending || 0).toLocaleString()}
+                </span>
+                <span className="text-[10px] text-slate-400 block">
+                  {(activeChama.debtPending || 0) > 0 ? 'Awaiting M-Pesa payment' : 'No overdue fees'}
+                </span>
+              </div>
+
+              <div className="bg-white p-3 rounded-xl border border-amber-200">
+                <span className="text-[10px] font-bold text-slate-500 block uppercase tracking-wider">Total Cash Paid</span>
+                <span className="text-base font-black font-mono-num text-emerald-800 mt-0.5 block">
+                  KSh {(activeChama.cashReceived || 0).toLocaleString()}
+                </span>
+                <span className="text-[10px] text-slate-400 block">Lifetime platform receipts</span>
+              </div>
+            </div>
+
+            {/* Reminder Note from Super Admin */}
+            {activeChama.reminderNote && (
+              <div className="p-3 bg-white rounded-xl border-l-4 border-amber-500 border border-amber-200 flex items-start gap-2.5 text-xs">
+                <BellRing className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="text-slate-900 block font-black">Official Reminder from Platform Administration:</strong>
+                  <p className="text-slate-700 mt-0.5 italic leading-relaxed">
+                    "{activeChama.reminderNote}"
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Pushed Bills History (if any) */}
+            {(activeChama.subscriptionBills || []).length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 block">
+                  Recent Invoices Pushed to Chairman ({activeChama.subscriptionBills!.length})
+                </span>
+                <div className="max-h-40 overflow-y-auto divide-y divide-amber-200/60 bg-white rounded-xl border border-amber-200">
+                  {activeChama.subscriptionBills!.map((bill) => (
+                    <div key={bill.id} className="p-2.5 flex items-center justify-between text-xs">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-slate-900">{bill.billNumber}</span>
+                          <span className="text-[11px] text-slate-500">({bill.billingPeriod})</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          Due: <span className="font-mono">{bill.dueDate}</span> • Pay to: <span className="font-mono font-bold text-slate-700">{bill.systemTillNumber}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-black text-slate-900 text-xs">
+                          KSh {bill.amount.toLocaleString()}
+                        </span>
+                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                          bill.status === 'paid'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-rose-100 text-rose-800'
+                        }`}>
+                          {bill.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* High-Level Metric Tiles in Light Green & Emerald */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-5 rounded-2xl border border-emerald-200/80 shadow-xs hover:border-emerald-400/50 transition">

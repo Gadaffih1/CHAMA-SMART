@@ -60,6 +60,12 @@ async function startServer() {
     if (!member) {
       return res.status(401).json({ error: 'Invalid credentials, or the account is locked or inactive. Contact your Chama administrator.' });
     }
+    const chama = allChamas().find(c => c.id === member.chamaId);
+    if (chama && chama.status && chama.status !== 'active') {
+      return res.status(403).json({
+        error: `Your Chama workspace (${chama.name}) is currently ${chama.status.toUpperCase()} by Platform Super Admin. Reason: ${chama.statusReason || 'Subscription / compliance hold'}. Please contact platform administration.`
+      });
+    }
     setSessionCookie(req, res, createSession({ kind: 'member', memberId: member.id }));
     const { passwordHash: _passwordHash, ...safe } = member;
     res.json({ role: 'member', member: safe });
@@ -305,6 +311,47 @@ async function startServer() {
       res.json({ success: true, count: saved });
     } catch (err: any) {
       console.error('Error syncing chamas:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Delete a Chama workspace (Super Admin only)
+  app.delete('/api/db/chamas/:id', requireSuperAdmin, (req, res) => {
+    try {
+      const { id } = req.params;
+      db.prepare('DELETE FROM chamas WHERE id = ?').run(id);
+      db.prepare('DELETE FROM members WHERE chama_id = ?').run(id);
+      db.prepare('DELETE FROM transactions WHERE chama_id = ?').run(id);
+      db.prepare('DELETE FROM audit_logs WHERE chama_id = ?').run(id);
+      removeOrphanCredentials();
+      generateSqlDump();
+      res.json({ success: true, message: `Chama ${id} deleted` });
+    } catch (err: any) {
+      console.error('Error deleting chama:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Settings endpoints (e.g. system_till_number, subscription_tiers)
+  app.get('/api/db/settings/:key', (_req, res) => {
+    try {
+      const row = db.prepare('SELECT value FROM system_settings WHERE key = ?').get(req.params.key) as { value: string } | undefined;
+      res.json(row ? JSON.parse(row.value) : null);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.put('/api/db/settings/:key', requireSuperAdmin, (req, res) => {
+    try {
+      const { key } = req.params;
+      db.prepare(`
+        INSERT INTO system_settings (key, value) VALUES (?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+      `).run(key, JSON.stringify(req.body));
+      generateSqlDump();
+      res.json({ success: true, key });
+    } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });

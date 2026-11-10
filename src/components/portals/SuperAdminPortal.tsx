@@ -28,11 +28,23 @@ import {
   Download,
   FolderDown,
   RefreshCw,
-  HardDrive
+  HardDrive,
+  Edit,
+  Send,
+  Receipt,
+  Power,
+  Trash2,
+  BellRing,
+  CreditCard,
+  Save
 } from 'lucide-react';
 import { useChama } from '../../context/ChamaContext';
 import { NewChamaModal } from '../modules/NewChamaModal';
 import { UserAccountManager } from '../modules/UserAccountManager';
+import { SuperAdminEditChamaModal } from '../modules/SuperAdminEditChamaModal';
+import { PushSubscriptionBillModal } from '../modules/PushSubscriptionBillModal';
+import { SuperAdminRecordPaymentModal } from '../modules/SuperAdminRecordPaymentModal';
+import { Chama, SubscriptionTier } from '../../types';
 
 interface DumpFileInfo {
   filename: string;
@@ -49,7 +61,15 @@ export const SuperAdminPortal: React.FC = () => {
     registrationApplications, 
     reviewRegistrationApplication,
     exportSqlDump,
-    isDbSyncing
+    isDbSyncing,
+    editChama,
+    deleteChama,
+    setChamaStatus,
+    subscriptionTiers,
+    updateSubscriptionTiers,
+    systemTillNumber,
+    setSystemTillNumber,
+    updateTenantBilling,
   } = useChama();
 
   const [isNewChamaOpen, setIsNewChamaOpen] = useState(false);
@@ -57,6 +77,27 @@ export const SuperAdminPortal: React.FC = () => {
   const [adminFeedback, setAdminFeedback] = useState<string>('');
   const [dumpFiles, setDumpFiles] = useState<DumpFileInfo[]>([]);
   const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  // Modals for tenant editing, billing & push
+  const [editingChama, setEditingChama] = useState<Chama | null>(null);
+  const [pushBillChama, setPushBillChama] = useState<Chama | null>(null);
+  const [recordPayChama, setRecordPayChama] = useState<Chama | null>(null);
+
+  // Platform System Till quick edit
+  const [editTillInput, setEditTillInput] = useState<string>(systemTillNumber);
+  const [isSavingTill, setIsSavingTill] = useState<boolean>(false);
+
+  // Subscription Tiers editor
+  const [tiersList, setTiersList] = useState<SubscriptionTier[]>(subscriptionTiers);
+  const [isEditingTiers, setIsEditingTiers] = useState<boolean>(false);
+
+  useEffect(() => {
+    setEditTillInput(systemTillNumber);
+  }, [systemTillNumber]);
+
+  useEffect(() => {
+    setTiersList(subscriptionTiers);
+  }, [subscriptionTiers]);
 
   const fetchDumpFiles = async () => {
     try {
@@ -90,6 +131,54 @@ export const SuperAdminPortal: React.FC = () => {
     }
   };
 
+  const handleSaveSystemTill = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTillInput.trim()) return;
+    setIsSavingTill(true);
+    const res = setSystemTillNumber(editTillInput.trim());
+    setIsSavingTill(false);
+    if (res.success) {
+      setAdminFeedback(res.message);
+      setTimeout(() => setAdminFeedback(''), 5000);
+    }
+  };
+
+  const handleSaveTiers = () => {
+    const res = updateSubscriptionTiers(tiersList);
+    setIsEditingTiers(false);
+    if (res.success) {
+      setAdminFeedback(res.message);
+      setTimeout(() => setAdminFeedback(''), 5000);
+    }
+  };
+
+  const handleTierFieldChange = (index: number, field: keyof SubscriptionTier, value: any) => {
+    const updated = [...tiersList];
+    updated[index] = { ...updated[index], [field]: value };
+    setTiersList(updated);
+  };
+
+  const handleAddCustomTier = () => {
+    const newTier: SubscriptionTier = {
+      id: `Tier-${Date.now()}`,
+      name: 'Custom Syndicate Tier',
+      monthlyFeeKsh: 3500,
+      memberLimitText: 'Up to 100 members',
+      maxMembers: 100,
+      description: 'Dedicated cloud container and priority support for investment syndicates',
+    };
+    setTiersList([...tiersList, newTier]);
+  };
+
+  const handleRemoveTier = (index: number) => {
+    if (tiersList.length <= 1) {
+      alert('Must retain at least one subscription tier.');
+      return;
+    }
+    const updated = tiersList.filter((_, i) => i !== index);
+    setTiersList(updated);
+  };
+
   const pendingApps = registrationApplications.filter(a => a.status === 'pending_approval');
   const reviewedApps = registrationApplications.filter(a => a.status !== 'pending_approval');
 
@@ -112,15 +201,48 @@ export const SuperAdminPortal: React.FC = () => {
     }
   };
 
+  // Quick Status Toggles
+  const handleQuickSuspend = (chama: Chama) => {
+    const reason = prompt(`Enter suspension note for "${chama.name}" (shown to members on login):`, 'Pending subscription fee settlement via System Till');
+    if (reason !== null) {
+      const res = setChamaStatus(chama.id, 'suspended', reason.trim());
+      setAdminFeedback(res.message);
+      setTimeout(() => setAdminFeedback(''), 5000);
+    }
+  };
+
+  const handleQuickReactivate = (chama: Chama) => {
+    const res = setChamaStatus(chama.id, 'active');
+    setAdminFeedback(res.message);
+    setTimeout(() => setAdminFeedback(''), 5000);
+  };
+
+  const handleQuickDelete = (chama: Chama) => {
+    if (confirm(`Permanently remove and purge Chama "${chama.name}" and all its records from the database? This action is irreversible.`)) {
+      const res = deleteChama(chama.id);
+      setAdminFeedback(res.message);
+      setTimeout(() => setAdminFeedback(''), 5000);
+    }
+  };
+
   // Platform Metrics
   const totalChamasCount = allChamas.length;
-  const totalMembersEnrolled = allChamas.reduce((sum, c) => sum + c.members.length, 0);
+  const activeTenantsCount = allChamas.filter(c => (c.status || 'active') === 'active').length;
+  const suspendedTenantsCount = allChamas.filter(c => c.status === 'suspended').length;
   const totalCapitalUnderManagement = allChamas.reduce(
     (sum, c) => sum + c.funds.reduce((s, f) => s + f.balance, 0),
     0
   );
   const monthlySaaSRecurringRevenue = allChamas.reduce(
     (sum, c) => sum + (c.monthlySubscriptionKsh || 0),
+    0
+  );
+  const totalDebtPending = allChamas.reduce(
+    (sum, c) => sum + (c.debtPending || 0),
+    0
+  );
+  const totalCashReceived = allChamas.reduce(
+    (sum, c) => sum + (c.cashReceived || 0),
     0
   );
 
@@ -143,8 +265,7 @@ export const SuperAdminPortal: React.FC = () => {
               Enterprise Chama SaaS Operations
             </h1>
             <p className="text-xs text-rose-100/80 max-w-xl leading-relaxed">
-              Managing independent chama digital offices across Kenya and East Africa. 
-              Reviewing public group registrations, provisioning tenant environments, and enforcing cryptographic data isolation.
+              Full administrative rights to configure workspaces, manage tenant lifecycles (active, suspended, deactivated), adjust commercial subscription tiers, and push billing invoices to tenant chairmen via System Till.
             </p>
           </div>
 
@@ -161,37 +282,55 @@ export const SuperAdminPortal: React.FC = () => {
         </div>
 
         {/* Global Key Metrics in Pink & Gold - Responsive Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6 sm:mt-8 pt-6 border-t border-amber-500/20">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mt-6 sm:mt-8 pt-6 border-t border-amber-500/20">
           <div className="p-2 sm:p-0">
-            <span className="text-xs text-rose-200/70 block">Active Chama Tenants</span>
-            <span className="text-xl sm:text-2xl font-black font-mono-num text-white">
-              {totalChamasCount} <span className="text-xs font-normal text-rose-300/70">Chamas</span>
+            <span className="text-[11px] text-rose-200/70 block">Active Workspaces</span>
+            <span className="text-lg sm:text-2xl font-black font-mono-num text-white">
+              {activeTenantsCount} <span className="text-xs font-normal text-rose-300/70">/ {totalChamasCount}</span>
             </span>
-            <span className="text-[11px] text-amber-300 block font-medium">100% System Uptime</span>
+            <span className="text-[10px] text-emerald-300 block font-medium">
+              {suspendedTenantsCount > 0 ? `${suspendedTenantsCount} Suspended` : 'All Active'}
+            </span>
           </div>
 
           <div className="p-2 sm:p-0">
-            <span className="text-xs text-rose-200/70 block">Pending Approvals</span>
-            <span className="text-xl sm:text-2xl font-black font-mono-num text-amber-300">
+            <span className="text-[11px] text-rose-200/70 block">Pending Approvals</span>
+            <span className="text-lg sm:text-2xl font-black font-mono-num text-amber-300">
               {pendingApps.length} <span className="text-xs font-normal text-amber-200/70">Queue</span>
             </span>
-            <span className="text-[11px] text-rose-300 block font-medium">Public Registrations</span>
+            <span className="text-[10px] text-rose-300 block font-medium">Public Submissions</span>
           </div>
 
           <div className="p-2 sm:p-0">
-            <span className="text-xs text-rose-200/70 block">Capital Under Management</span>
-            <span className="text-xl sm:text-2xl font-black font-mono-num text-amber-300">
+            <span className="text-[11px] text-rose-200/70 block">Capital Under Mgmt</span>
+            <span className="text-lg sm:text-2xl font-black font-mono-num text-amber-300">
               KSh {totalCapitalUnderManagement.toLocaleString()}
             </span>
-            <span className="text-[11px] text-rose-200/70 block font-medium">Pooled liquid reserves</span>
+            <span className="text-[10px] text-rose-200/70 block font-medium">Pooled liquid reserves</span>
           </div>
 
           <div className="p-2 sm:p-0">
-            <span className="text-xs text-rose-200/70 block">Monthly SaaS MRR</span>
-            <span className="text-xl sm:text-2xl font-black font-mono-num text-amber-400">
+            <span className="text-[11px] text-rose-200/70 block">Monthly SaaS MRR</span>
+            <span className="text-lg sm:text-2xl font-black font-mono-num text-amber-400">
               KSh {monthlySaaSRecurringRevenue.toLocaleString()}
             </span>
-            <span className="text-[11px] text-amber-200/70 block font-medium">Recurring subscription fees</span>
+            <span className="text-[10px] text-amber-200/70 block font-medium">Projected monthly fee</span>
+          </div>
+
+          <div className="p-2 sm:p-0">
+            <span className="text-[11px] text-rose-200/70 block">Total Cash Collected</span>
+            <span className="text-lg sm:text-2xl font-black font-mono-num text-emerald-300">
+              KSh {totalCashReceived.toLocaleString()}
+            </span>
+            <span className="text-[10px] text-emerald-200/70 block font-medium">Cash received to date</span>
+          </div>
+
+          <div className="p-2 sm:p-0">
+            <span className="text-[11px] text-rose-200/70 block">Debt Pending (Due)</span>
+            <span className="text-lg sm:text-2xl font-black font-mono-num text-rose-400">
+              KSh {totalDebtPending.toLocaleString()}
+            </span>
+            <span className="text-[10px] text-rose-200/70 block font-medium">Outstanding platform fees</span>
           </div>
         </div>
 
@@ -207,7 +346,7 @@ export const SuperAdminPortal: React.FC = () => {
             }`}
           >
             <Clock className="w-3.5 h-3.5 shrink-0" />
-            <span className="shrink-0">Public Registration Approvals ({pendingApps.length})</span>
+            <span className="shrink-0">Registration Queue ({pendingApps.length})</span>
           </button>
 
           <button
@@ -220,7 +359,7 @@ export const SuperAdminPortal: React.FC = () => {
             }`}
           >
             <Building2 className="w-3.5 h-3.5 shrink-0" />
-            <span className="shrink-0">Active Workspaces ({allChamas.length})</span>
+            <span className="shrink-0">Tenants & Billing ({allChamas.length})</span>
           </button>
 
           <button
@@ -233,7 +372,7 @@ export const SuperAdminPortal: React.FC = () => {
             }`}
           >
             <DollarSign className="w-3.5 h-3.5 shrink-0" />
-            <span className="shrink-0">Commercial SaaS Tiers</span>
+            <span className="shrink-0">System Till & SaaS Tiers</span>
           </button>
 
           <button
@@ -265,7 +404,7 @@ export const SuperAdminPortal: React.FC = () => {
       </div>
 
       {adminFeedback && (
-        <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-2xl text-xs font-bold text-emerald-900 flex items-center gap-2 shadow-xs">
+        <div className="p-4 bg-emerald-50 border-2 border-emerald-400 rounded-2xl text-xs font-bold text-emerald-900 flex items-center gap-2 shadow-xs">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>{adminFeedback}</span>
         </div>
@@ -407,95 +546,228 @@ export const SuperAdminPortal: React.FC = () => {
         </div>
       )}
 
-      {/* TAB: ACTIVE TENANTS */}
+      {/* TAB: ACTIVE TENANTS & BILLING WORKSPACES */}
       {adminTab === 'tenants' && (
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6">
-        <div className="flex justify-between items-center pb-4 border-b border-slate-100 mb-6">
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
           <div>
-            <h3 className="font-bold text-slate-900 text-base">Provisioned Chama Workspaces</h3>
-            <p className="text-xs text-slate-500">
-              Each organization operates in strict isolation with separate databases, ledgers, and encryption keys
+            <div className="flex items-center gap-2">
+              <h3 className="font-black text-slate-900 text-base">Provisioned Chama Workspaces & Billing Controls</h3>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+                {allChamas.length} Tenants Active
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Super Admin has full rights to edit workspace details, suspend or deactivate accounts, adjust subscription fees, push bills to chairmen, and reconcile cash received.
             </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsNewChamaOpen(true)}
+              className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs rounded-xl shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Onboard New Tenant</span>
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Tenant Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {allChamas.map((c) => {
             const isCurrent = c.id === activeChama.id;
             const chamaCapital = c.funds.reduce((s, f) => s + f.balance, 0);
-            const chairPerson = c.members.find(m => m.role === 'chairperson');
-            const secretary = c.members.find(m => m.role === 'secretary');
-            const treasurer = c.members.find(m => m.role === 'treasurer');
+            const chairPerson = c.members.find(m => m.role === 'chairperson') || c.members[0];
+            const tenantStatus = c.status || 'active';
+            const hasPendingDebt = (c.debtPending || 0) > 0;
 
             return (
               <div
                 key={c.id}
-                className={`p-5 rounded-2xl border transition flex flex-col justify-between ${
-                  isCurrent
+                className={`p-5 rounded-2xl border-2 transition flex flex-col justify-between shadow-xs ${
+                  tenantStatus === 'suspended'
+                    ? 'border-amber-300 bg-amber-50/30'
+                    : tenantStatus === 'deactivated'
+                    ? 'border-rose-300 bg-rose-50/30'
+                    : isCurrent
                     ? 'border-amber-400 ring-2 ring-amber-400/20 bg-rose-50/20'
-                    : 'border-rose-100 bg-white hover:border-amber-300'
+                    : 'border-slate-200 bg-white hover:border-amber-300'
                 }`}
               >
                 <div>
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
-                      {c.category.replace('_', ' ')}
-                    </span>
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300">
-                      Tier: {c.planTier}
+                  {/* Top Header Badges */}
+                  <div className="flex justify-between items-start mb-2 gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
+                        {c.category.replace('_', ' ')}
+                      </span>
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300">
+                        {c.planTier} (KSh {c.monthlySubscriptionKsh}/mo)
+                      </span>
+                    </div>
+
+                    {/* Status Pill */}
+                    <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
+                      tenantStatus === 'active'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : tenantStatus === 'suspended'
+                        ? 'bg-amber-100 text-amber-900 border border-amber-400 animate-pulse'
+                        : 'bg-rose-100 text-rose-800 border border-rose-300'
+                    }`}>
+                      {tenantStatus}
                     </span>
                   </div>
 
-                  <h4 className="font-bold text-rose-950 text-base leading-snug">{c.name}</h4>
-                  <p className="text-xs text-amber-800/70 mt-1">{c.county}, {c.country}</p>
-                  <p className="text-[11px] text-rose-400 italic mt-1 font-mono">Reg: {c.registrationNumber}</p>
+                  <h4 className="font-black text-slate-900 text-base leading-snug">{c.name}</h4>
+                  <p className="text-xs text-slate-500 mt-0.5">{c.county}, {c.country || 'Kenya'}</p>
+                  <p className="text-[11px] text-slate-400 italic font-mono">Reg: {c.registrationNumber || 'Unregistered'}</p>
+
+                  {/* Suspension Note if suspended */}
+                  {tenantStatus !== 'active' && c.statusReason && (
+                    <div className="mt-2.5 p-2 bg-rose-50 border border-rose-200 rounded-xl text-[11px] text-rose-900 flex items-start gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="block">{tenantStatus.toUpperCase()} Hold:</strong>
+                        <span>{c.statusReason}</span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Governance Snapshot */}
-                  <div className="mt-3 p-2 bg-rose-50/40 rounded-xl border border-rose-100 text-[11px] space-y-1">
-                    <div className="flex justify-between">
+                  <div className="mt-3 p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px] space-y-1">
+                    <div className="flex justify-between items-center">
                       <span className="text-slate-500 font-medium">Chair (Admin):</span>
                       <strong className="text-slate-800">{chairPerson?.name || 'Unassigned'}</strong>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-medium">Secretary:</span>
-                      <strong className="text-slate-800">{secretary?.name || 'Not yet appointed'}</strong>
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono">
+                      <span>Chair Phone:</span>
+                      <span>{chairPerson?.phoneNumber || 'No phone'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-medium">Treasurer:</span>
-                      <strong className="text-slate-800">{treasurer?.name || 'Not yet appointed'}</strong>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-medium">Pooled Capital:</span>
+                      <strong className="text-amber-700 font-mono">KSh {chamaCapital.toLocaleString()}</strong>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-rose-100 text-xs">
-                    <div>
-                      <span className="text-slate-400 block text-[10px] uppercase">Members</span>
-                      <span className="font-bold text-slate-800 font-mono-num">{c.members.length}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px] uppercase">Pooled Capital</span>
-                      <span className="font-extrabold text-amber-700 font-mono-num text-[11px]">
-                        KSh {chamaCapital.toLocaleString()}
+                  {/* Tenant Billing Box */}
+                  <div className="mt-3 p-3 bg-amber-50/50 rounded-xl border border-amber-200/80 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-600 font-bold flex items-center gap-1">
+                        <CreditCard className="w-3 h-3 text-amber-700" />
+                        <span>System Till:</span>
+                      </span>
+                      <span className="font-mono font-bold text-slate-900">
+                        {c.systemTillNumber || systemTillNumber}
                       </span>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-amber-200/60 text-[11px]">
+                      <div>
+                        <span className="text-slate-500 block text-[10px]">Debt Pending:</span>
+                        <strong className={`font-mono font-bold text-xs ${hasPendingDebt ? 'text-rose-700' : 'text-emerald-700'}`}>
+                          KSh {(c.debtPending || 0).toLocaleString()}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[10px]">Cash Received:</span>
+                        <strong className="font-mono font-bold text-xs text-emerald-800">
+                          KSh {(c.cashReceived || 0).toLocaleString()}
+                        </strong>
+                      </div>
+                    </div>
+
+                    {c.reminderNote && (
+                      <div className="pt-1.5 border-t border-amber-200/60 text-[10px] text-amber-900 leading-snug">
+                        <span className="font-bold flex items-center gap-1">
+                          <BellRing className="w-2.5 h-2.5 text-amber-700" />
+                          <span>Tenant Note:</span>
+                        </span>
+                        <span className="italic line-clamp-2">"{c.reminderNote}"</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="mt-5 pt-3 border-t border-rose-100 flex items-center justify-between">
-                  <span className="text-[11px] font-semibold text-rose-950">
-                    KSh {c.monthlySubscriptionKsh}/mo
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setActiveChamaId(c.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
-                      isCurrent
-                        ? 'bg-gradient-to-r from-rose-600 to-amber-500 text-white shadow-xs'
-                        : 'bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-200'
-                    }`}
-                  >
-                    <span>{isCurrent ? 'Active Workspace' : 'Switch Workspace'}</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
+                {/* Super Admin Control Actions */}
+                <div className="mt-4 pt-3 border-t border-slate-200 space-y-2">
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditingChama(c)}
+                      className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] rounded-lg transition flex items-center justify-center gap-1 cursor-pointer"
+                      title="Edit all chama parameters, plan, details and notes"
+                    >
+                      <Edit className="w-3 h-3 text-slate-600" />
+                      <span>Edit</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPushBillChama(c)}
+                      className="py-1.5 px-2 bg-amber-100 hover:bg-amber-200 text-amber-950 font-bold text-[11px] rounded-lg transition flex items-center justify-center gap-1 cursor-pointer"
+                      title="Push subscription bill to Chairman"
+                    >
+                      <Send className="w-3 h-3 text-amber-700" />
+                      <span>Bill</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRecordPayChama(c)}
+                      className="py-1.5 px-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-950 font-bold text-[11px] rounded-lg transition flex items-center justify-center gap-1 cursor-pointer"
+                      title="Record subscription cash received & reconcile debt"
+                    >
+                      <Receipt className="w-3 h-3 text-emerald-700" />
+                      <span>Cash</span>
+                    </button>
+                  </div>
+
+                  {/* Lifecycle Buttons: Suspend / Reactivate / Delete */}
+                  <div className="flex items-center justify-between gap-2 pt-1 text-[11px]">
+                    {tenantStatus === 'active' ? (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickSuspend(c)}
+                        className="text-amber-800 hover:text-amber-950 font-bold flex items-center gap-1 cursor-pointer text-[10px]"
+                      >
+                        <Power className="w-3 h-3 text-amber-600" />
+                        <span>Suspend</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickReactivate(c)}
+                        className="text-emerald-700 hover:text-emerald-900 font-bold flex items-center gap-1 cursor-pointer text-[10px]"
+                      >
+                        <Power className="w-3 h-3 text-emerald-600" />
+                        <span>Reactivate</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => handleQuickDelete(c)}
+                      className="text-rose-600 hover:text-rose-800 font-bold flex items-center gap-1 cursor-pointer text-[10px]"
+                    >
+                      <Trash2 className="w-3 h-3 text-rose-500" />
+                      <span>Remove</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveChamaId(c.id)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+                        isCurrent
+                          ? 'bg-gradient-to-r from-rose-600 to-amber-500 text-white shadow-xs'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <span>{isCurrent ? 'Current' : 'Switch'}</span>
+                      <ArrowRight className="w-2.5 h-2.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -504,35 +776,219 @@ export const SuperAdminPortal: React.FC = () => {
       </div>
       )}
 
-      {/* TAB: COMMERCIAL SAAS TIERS */}
+      {/* TAB: COMMERCIAL SAAS TIERS & SYSTEM TILL CONTROL */}
       {adminTab === 'tiers' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6">
-          <h3 className="font-bold text-slate-900 text-base mb-1">Commercial SaaS Subscription Tiers</h3>
-          <p className="text-xs text-slate-500 mb-6">
-            Predictable flat-fee pricing model for Kenyan self-help groups, SACCOs, and investment syndicates
-          </p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {[
-              { name: 'Starter', limit: 'Free upto members', price: 'Free', color: 'slate', desc: 'Free upto members' },
-              { name: 'Basic', limit: 'Upto 10 members', price: '500/- per month', color: 'blue', desc: '500/- per month for upto 10 members' },
-              { name: 'Growth', limit: 'Upto 30 members', price: '1,500/- per month', color: 'emerald', desc: '1500/- per month for upto 30 members' },
-              { name: 'Professional', limit: 'Upto 50 members', price: '2,500/- per month', color: 'violet', desc: '2500/- per month for upto 50 members' },
-              { name: 'Enterprise', limit: 'Over 50 members', price: 'Custom Quote', color: 'amber', desc: 'Custom quote' },
-            ].map((tier) => (
-              <div key={tier.name} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between">
-                <div>
-                  <span className="font-bold text-slate-900 text-sm block">{tier.name}</span>
-                  <span className="text-[11px] text-slate-500 block">{tier.limit}</span>
-                  <div className="text-sm sm:text-base font-black text-slate-900 font-mono-num mt-2">
-                    {tier.price}
-                  </div>
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-6">
+          
+          {/* SYSTEM TILL ACCOUNT CONFIGURATION CARD */}
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-amber-700" />
+                  <h3 className="font-black text-slate-900 text-base">Platform System Till Account Number</h3>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
+                    Safaricom Daraja / M-Pesa Till
+                  </span>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-3 pt-2 border-t border-slate-200">
-                  {tier.desc}
+                <p className="text-xs text-slate-600 mt-1 max-w-xl">
+                  This account is embedded into all subscription invoices pushed to tenant chamas. Chairman and treasurers pay monthly SaaS platform fees to this destination.
                 </p>
               </div>
-            ))}
+
+              {/* Form to update system till */}
+              <form onSubmit={handleSaveSystemTill} className="flex items-center gap-2 shrink-0">
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 589214 or Till: 498201"
+                  value={editTillInput}
+                  onChange={(e) => setEditTillInput(e.target.value)}
+                  className="px-3 py-2 bg-white border-2 border-amber-400 rounded-xl text-xs font-mono font-bold text-slate-900 w-44 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-inner"
+                />
+                <button
+                  type="submit"
+                  disabled={isSavingTill}
+                  className="px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs rounded-xl shadow-sm border border-amber-300 transition cursor-pointer"
+                >
+                  {isSavingTill ? 'Saving...' : 'Update Till'}
+                </button>
+              </form>
+            </div>
+
+            {/* Global Billing Aggregates */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-amber-200 text-xs">
+              <div className="bg-white p-3 rounded-xl border border-amber-200/80">
+                <span className="text-[11px] text-slate-500 block">Total SaaS Cash Collected</span>
+                <span className="text-lg font-black font-mono-num text-emerald-700">
+                  KSh {totalCashReceived.toLocaleString()}
+                </span>
+                <span className="text-[10px] text-slate-400 block">From all active tenants</span>
+              </div>
+
+              <div className="bg-white p-3 rounded-xl border border-amber-200/80">
+                <span className="text-[11px] text-slate-500 block">Total Outstanding Debt Pending</span>
+                <span className="text-lg font-black font-mono-num text-rose-700">
+                  KSh {totalDebtPending.toLocaleString()}
+                </span>
+                <span className="text-[10px] text-slate-400 block">Awaiting payment via System Till</span>
+              </div>
+
+              <div className="bg-white p-3 rounded-xl border border-amber-200/80">
+                <span className="text-[11px] text-slate-500 block">Current Active System Till</span>
+                <span className="text-lg font-black font-mono font-bold text-slate-900">
+                  {systemTillNumber}
+                </span>
+                <span className="text-[10px] text-slate-400 block">System-wide default</span>
+              </div>
+            </div>
+          </div>
+
+          {/* SUBSCRIPTION TIERS ADJUSTER & EDITOR */}
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
+              <div>
+                <h3 className="font-black text-slate-900 text-base">Commercial Subscription Tiers Editor</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Super Admin has full rights to edit and adjust tier pricing, member limits, descriptions, or add new commercial tiers.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {isEditingTiers ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleAddCustomTier}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition cursor-pointer"
+                    >
+                      + Add Custom Tier
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTiersList(subscriptionTiers);
+                        setIsEditingTiers(false);
+                      }}
+                      className="px-3 py-1.5 text-slate-500 hover:text-slate-700 font-bold text-xs transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveTiers}
+                      className="px-4 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save Tiers Adjustments</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingTiers(true)}
+                    className="px-4 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs rounded-xl shadow-sm flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    <span>Edit Subscription Tiers</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Tiers Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              {tiersList.map((tier, index) => (
+                <div
+                  key={tier.id}
+                  className={`p-4 rounded-2xl border-2 transition flex flex-col justify-between ${
+                    isEditingTiers
+                      ? 'border-amber-300 bg-amber-50/20'
+                      : 'border-slate-200 bg-slate-50/50'
+                  }`}
+                >
+                  <div className="space-y-3">
+                    {isEditingTiers ? (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <input
+                            type="text"
+                            value={tier.name}
+                            onChange={(e) => handleTierFieldChange(index, 'name', e.target.value)}
+                            className="text-xs font-black p-1.5 bg-white border border-slate-300 rounded-lg w-full text-slate-900"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTier(index)}
+                            className="text-rose-500 hover:text-rose-700 ml-1 text-xs"
+                            title="Remove tier"
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-0.5">
+                            Monthly Fee (KSh)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={tier.monthlyFeeKsh}
+                            onChange={(e) => handleTierFieldChange(index, 'monthlyFeeKsh', Number(e.target.value))}
+                            className="text-xs font-mono font-bold p-1.5 bg-white border border-slate-300 rounded-lg w-full text-slate-900"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-0.5">
+                            Member Limit Label
+                          </label>
+                          <input
+                            type="text"
+                            value={tier.memberLimitText}
+                            onChange={(e) => handleTierFieldChange(index, 'memberLimitText', e.target.value)}
+                            className="text-[11px] p-1.5 bg-white border border-slate-300 rounded-lg w-full text-slate-900"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-0.5">
+                            Description
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={tier.description}
+                            onChange={(e) => handleTierFieldChange(index, 'description', e.target.value)}
+                            className="text-[10px] p-1.5 bg-white border border-slate-300 rounded-lg w-full text-slate-900"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <span className="font-black text-slate-900 text-sm block">{tier.name}</span>
+                          <span className="text-[11px] text-slate-500 block font-medium">{tier.memberLimitText}</span>
+                          <div className="text-base font-black text-amber-700 font-mono-num mt-2">
+                            {tier.monthlyFeeKsh === 0 ? 'Free' : `KSh ${tier.monthlyFeeKsh.toLocaleString()}/- mo`}
+                          </div>
+                        </div>
+
+                        <p className="text-[11px] text-slate-600 mt-2 pt-2 border-t border-slate-200 leading-snug">
+                          {tier.description}
+                        </p>
+                      </>
+                    )}
+                  </div>
+
+                  {!isEditingTiers && (
+                    <div className="pt-3 border-t border-slate-200 mt-3 text-[10px] text-slate-400">
+                      <span>Assigned to {allChamas.filter(c => c.planTier === tier.id || c.planTier === tier.name).length} Chamas</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -606,52 +1062,6 @@ export const SuperAdminPortal: React.FC = () => {
             </div>
           </div>
 
-          {/* Database Tables & Record Statistics */}
-          <div className="space-y-3">
-            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
-              Relational Tables Live Record Counters
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-[11px] text-slate-500 block">TABLE chamas</span>
-                <span className="text-lg font-black text-slate-900 font-mono-num">{allChamas.length}</span>
-                <span className="text-[10px] text-slate-400 block">Tenants & workspaces</span>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-[11px] text-slate-500 block">TABLE members</span>
-                <span className="text-lg font-black text-slate-900 font-mono-num">
-                  {allChamas.reduce((sum, c) => sum + c.members.length, 0)}
-                </span>
-                <span className="text-[10px] text-slate-400 block">Enrolled member accounts</span>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-[11px] text-slate-500 block">TABLE registration_applications</span>
-                <span className="text-lg font-black text-slate-900 font-mono-num">
-                  {registrationApplications.length}
-                </span>
-                <span className="text-[10px] text-slate-400 block">Public group submissions</span>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-[11px] text-slate-500 block">TABLE transactions</span>
-                <span className="text-lg font-black text-slate-900 font-mono-num">
-                  {allChamas.reduce((sum, c) => sum + c.transactions.length, 0)}
-                </span>
-                <span className="text-[10px] text-slate-400 block">M-Pesa & ledger events</span>
-              </div>
-
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                <span className="text-[11px] text-slate-500 block">TABLE audit_logs</span>
-                <span className="text-lg font-black text-slate-900 font-mono-num">
-                  {allChamas.reduce((sum, c) => sum + c.auditLogs.length, 0)}
-                </span>
-                <span className="text-[10px] text-slate-400 block">Governance immutable audit</span>
-              </div>
-            </div>
-          </div>
-
           {/* Export SQL Dump Files in export_sql_dump/ Folder */}
           <div className="space-y-3 pt-2">
             <div className="flex items-center justify-between">
@@ -702,43 +1112,6 @@ export const SuperAdminPortal: React.FC = () => {
               </div>
             )}
           </div>
-
-          {/* Sample ANSI SQL Script Preview */}
-          <div className="space-y-2 pt-2">
-            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
-              SQL Dump Schema & Structure Preview
-            </h4>
-            <div className="p-4 bg-slate-900 text-amber-300 font-mono text-[11px] rounded-xl overflow-x-auto leading-relaxed border border-slate-800">
-              <pre>{`-- ChamaSmart Enterprise SQL Database Dump Sample
--- Engine: Relational SQLite / PostgreSQL / MySQL Compatible DDL
-CREATE TABLE IF NOT EXISTS chamas (
-  id VARCHAR(64) PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  category VARCHAR(64) NOT NULL,
-  plan_tier VARCHAR(64) NOT NULL,
-  monthly_subscription_ksh NUMERIC(12,2) NOT NULL DEFAULT 500,
-  raw_data TEXT NOT NULL,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS members (
-  id VARCHAR(64) PRIMARY KEY,
-  chama_id VARCHAR(64) NOT NULL REFERENCES chamas(id) ON DELETE CASCADE,
-  name VARCHAR(255) NOT NULL,
-  phone_number VARCHAR(32) NOT NULL,
-  membership_number VARCHAR(64) NOT NULL,
-  role VARCHAR(64) NOT NULL DEFAULT 'member',
-  total_savings NUMERIC(14,2) NOT NULL DEFAULT 0.00
-);
-
-CREATE TABLE IF NOT EXISTS registration_applications (
-  id VARCHAR(64) PRIMARY KEY,
-  chama_name VARCHAR(255) NOT NULL,
-  applicant_chairperson_name VARCHAR(255) NOT NULL,
-  status VARCHAR(32) NOT NULL DEFAULT 'pending_approval'
-);`}</pre>
-            </div>
-          </div>
         </div>
       )}
 
@@ -768,10 +1141,46 @@ CREATE TABLE IF NOT EXISTS registration_applications (
         </div>
       </div>
 
-      {/* New Chama Modal */}
+      {/* MODALS */}
       <NewChamaModal
         isOpen={isNewChamaOpen}
         onClose={() => setIsNewChamaOpen(false)}
+      />
+
+      <SuperAdminEditChamaModal
+        chama={editingChama}
+        isOpen={!!editingChama}
+        onClose={() => setEditingChama(null)}
+        onSave={(chamaId, updates) => {
+          const res = editChama(chamaId, updates);
+          setAdminFeedback(res.message);
+          setTimeout(() => setAdminFeedback(''), 5000);
+        }}
+        onDelete={(chamaId) => {
+          const res = deleteChama(chamaId);
+          setAdminFeedback(res.message);
+          setTimeout(() => setAdminFeedback(''), 5000);
+        }}
+      />
+
+      <PushSubscriptionBillModal
+        chama={pushBillChama}
+        isOpen={!!pushBillChama}
+        onClose={() => setPushBillChama(null)}
+        onSuccess={(msg) => {
+          setAdminFeedback(msg);
+          setTimeout(() => setAdminFeedback(''), 6000);
+        }}
+      />
+
+      <SuperAdminRecordPaymentModal
+        chama={recordPayChama}
+        isOpen={!!recordPayChama}
+        onClose={() => setRecordPayChama(null)}
+        onSuccess={(msg) => {
+          setAdminFeedback(msg);
+          setTimeout(() => setAdminFeedback(''), 6000);
+        }}
       />
     </div>
   );
