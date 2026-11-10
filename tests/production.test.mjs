@@ -108,6 +108,31 @@ test('production server serves the built app and database API', { timeout: 30000
     assert.equal(afterSync.find(item => item.id === chama.id).members.find(m => m.id === member.id).role, 'member');
     assert.equal(afterSync.find(item => item.id === otherChama.id).name, otherChama.name);
 
+    // Officials can schedule in their own workspace; a member's stale or tampered
+    // workspace sync must not remove or alter meetings.
+    const officialData = { ...newMember, name: 'Test Secretary', phoneNumber: '+254700111223', email: 'secretary@example.com', membershipNumber: 'CS-TEST-002', role: 'secretary', password: 'Secretary-Pass-1' };
+    const officialCreated = await fetch(`${base}/api/db/chamas/${chama.id}/members`, {
+      method: 'POST', headers: { ...admin.headers, 'Content-Type': 'application/json' }, body: JSON.stringify(officialData),
+    });
+    assert.equal(officialCreated.status, 201);
+    const official = await login('/api/auth/login', { identifier: officialData.phoneNumber, password: officialData.password });
+    assert.equal(official.res.status, 200);
+    const officialChamas = await (await fetch(`${base}/api/db/chamas`, { headers: official.headers })).json();
+    const scheduled = {
+      id: 'meeting-test', chamaId: chama.id, title: 'Planning', date: '2028-02-29', time: '09:00',
+      venue: 'Community Hall', isVirtual: false, status: 'upcoming', agendaItems: ['Budget', 'Elections'], attendance: [],
+    };
+    officialChamas[0].meetings.push(scheduled);
+    const syncAs = (headers, data) => fetch(`${base}/api/db/chamas/sync`, {
+      method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+    });
+    assert.equal((await syncAs(official.headers, officialChamas)).status, 200);
+    const savedMeetings = (await (await fetch(`${base}/api/db/chamas`, { headers: official.headers })).json())[0].meetings;
+    assert.deepEqual(savedMeetings.find(item => item.id === scheduled.id), scheduled);
+    assert.equal((await syncAs(memberLogin.headers, memberChamas)).status, 200);
+    const meetingsAfterMemberSync = (await (await fetch(`${base}/api/db/chamas`, { headers: official.headers })).json())[0].meetings;
+    assert.deepEqual(meetingsAfterMemberSync.find(item => item.id === scheduled.id), scheduled);
+
     // Super admin resets the password, which revokes existing sessions.
     const reset = await fetch(`${base}/api/auth/members/${member.id}/password`, { method: 'PUT', headers: { ...admin.headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'Fresh-Pass-123' }) });
     assert.equal(reset.status, 200);

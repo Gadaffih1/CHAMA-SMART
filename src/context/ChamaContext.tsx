@@ -35,6 +35,8 @@ interface ChamaContextType {
   isAuthenticated: boolean;
   isSuperAdminLoggedIn: boolean;
   isDbSyncing: boolean;
+  dbSyncError: string | null;
+  retryDbSync: () => void;
   userChamas: Chama[];
   currentOfficialRole: Role;
   searchQuery: string;
@@ -219,6 +221,8 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [currentOfficialRole, setCurrentOfficialRole] = useState<Role>('treasurer');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isDbSyncing, setIsDbSyncing] = useState<boolean>(false);
+  const [dbSyncError, setDbSyncError] = useState<string | null>(null);
+  const [syncAttempt, setSyncAttempt] = useState(0);
   const [dbLoaded, setDbLoaded] = useState<boolean>(false);
 
   // Platform System Till Account Number & Commercial Tiers
@@ -244,6 +248,7 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const isAuthenticated = currentUser !== null || isSuperAdminLoggedIn;
 
   const clearSession = () => {
+    setDbSyncError(null);
     setCurrentUser(null);
     setIsSuperAdminLoggedIn(false);
     setActivePortal('member');
@@ -326,18 +331,32 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     if (!dbLoaded || !isAuthenticated) return;
 
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       fetch('/api/db/chamas/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(allChamas),
+        signal: controller.signal,
       }).then(response => {
-        if (response.status === 401) clearSession();
-      }).catch(err => console.error('Error synchronizing with database:', err));
+        if (response.status === 401) {
+          clearSession();
+          return;
+        }
+        if (!response.ok) throw new Error(`Database sync failed (${response.status})`);
+        setDbSyncError(null);
+      }).catch(err => {
+        if (controller.signal.aborted) return;
+        console.error('Error synchronizing with database:', err);
+        setDbSyncError('Changes could not be saved to the server. Keep this page open and retry.');
+      });
     }, 400);
 
-    return () => clearTimeout(timer);
-  }, [allChamas, dbLoaded, isAuthenticated]);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [allChamas, dbLoaded, isAuthenticated, syncAttempt]);
 
   useEffect(() => {
     try {
@@ -1234,7 +1253,7 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return {
       success: true,
       meetingId,
-      message: `Meeting "${params.title}" successfully scheduled for ${params.date}!`,
+      message: `Meeting "${params.title}" added for ${params.date}; saving changes to the server.`,
     };
   };
 
@@ -2320,6 +2339,8 @@ export const ChamaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         resetMemberPassword,
         exportSqlDump,
         isDbSyncing,
+        dbSyncError,
+        retryDbSync: () => setSyncAttempt(attempt => attempt + 1),
         resetToDefaults,
         subscriptionTiers,
         updateSubscriptionTiers,
