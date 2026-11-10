@@ -26,8 +26,7 @@ import {
   Calendar,
   BellRing,
   Receipt,
-  ShieldAlert,
-  CreditCard
+  ShieldAlert
 } from 'lucide-react';
 import { useChama } from '../../context/ChamaContext';
 import { DualAuthModal } from '../modules/DualAuthModal';

@@ -240,7 +240,12 @@ async function startServer() {
         status: actorRole === 'chairperson' || actorRole === 'secretary' ? proposed.status : current.status,
       } as Member;
     });
-    return { ...incoming, id: existing.id, members };
+    return {
+      ...incoming,
+      id: existing.id,
+      members,
+      meetings: actorRole === 'member' ? existing.meetings : incoming.meetings,
+    };
   }
 
   app.get('/api/db/chamas', requireAuth, (req, res) => {

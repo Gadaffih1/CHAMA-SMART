@@ -28,6 +28,8 @@ import {
 } from 'lucide-react';
 import { useChama } from '../../context/ChamaContext';
 import { Meeting, MeetingAttendance } from '../../types';
+import { MeetingCalendar } from './MeetingCalendar';
+import { localDateKey } from './meetingCalendar';
 
 const STANDARD_TABLE_BANKING_AGENDA = [
   '1. Opening Devotion & Confirmation of Quorum',
@@ -53,7 +55,10 @@ const AGM_AGENDA = [
 export const MeetingScheduler: React.FC = () => {
   const { 
     activeChama, 
-    currentOfficialRole, 
+    currentUser,
+    isSuperAdminLoggedIn,
+    dbSyncError,
+    retryDbSync,
     scheduleMeeting, 
     saveMeetingAttendance, 
     updateMeetingStatus, 
@@ -61,33 +66,37 @@ export const MeetingScheduler: React.FC = () => {
   } = useChama();
 
   const [filterStatus, setFilterStatus] = useState<'all' | 'upcoming' | 'in_progress' | 'completed'>('all');
-  const [selectedMeetingId, setSelectedMeetingId] = useState<string>(activeChama.meetings[0]?.id || '');
+  const [selectedMeetingId, setSelectedMeetingId] = useState<string>(activeChama.meetings?.[0]?.id || '');
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState('');
+  const [formError, setFormError] = useState('');
 
   // New Meeting Form State
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);
-    return d.toISOString().split('T')[0];
+    return localDateKey(d);
   });
   const [time, setTime] = useState('14:00');
   const [venue, setVenue] = useState('Chama Community Hall');
   const [isVirtual, setIsVirtual] = useState(false);
-  const [virtualLink, setVirtualLink] = useState('https://meet.google.com/abc-defg-hij');
+  const [virtualLink, setVirtualLink] = useState('');
   const [agendaItems, setAgendaItems] = useState<string[]>([...STANDARD_TABLE_BANKING_AGENDA]);
   const [newAgendaInput, setNewAgendaInput] = useState('');
 
   const meetings = activeChama.meetings || [];
-  const filteredMeetings = meetings.filter(m => {
-    if (filterStatus === 'all') return true;
-    return m.status === filterStatus;
-  });
+  const filteredMeetings = meetings.filter(m =>
+    (!selectedDate || (m.date === selectedDate && m.status === 'upcoming')) &&
+    (filterStatus === 'all' || m.status === filterStatus)
+  ).sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time) || a.title.localeCompare(b.title));
 
-  const selectedMeeting = meetings.find(m => m.id === selectedMeetingId) || filteredMeetings[0] || meetings[0];
+  const selectedMeeting = filteredMeetings.find(m => m.id === selectedMeetingId) || filteredMeetings[0];
 
-  const canManage = ['chairperson', 'secretary', 'treasurer', 'loan_officer', 'super_admin'].includes(currentOfficialRole);
+  const actualRole = activeChama.members.find(member => member.id === currentUser?.id)?.role;
+  const canManage = isSuperAdminLoggedIn || (actualRole !== undefined && ['chairperson', 'secretary', 'treasurer', 'loan_officer'].includes(actualRole));
 
   // Quick preset loading
   const handleLoadAgendaPreset = (preset: 'standard' | 'agm') => {
@@ -110,22 +119,35 @@ export const MeetingScheduler: React.FC = () => {
 
   const handleCreateMeeting = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !date || !time) return;
+    if (!title.trim() || !date || !time || !venue.trim()) {
+      setFormError('Enter a title, date, time and meeting location.');
+      return;
+    }
+    if (isVirtual && !/^https?:\/\//i.test(virtualLink.trim())) {
+      setFormError('Enter a virtual meeting link starting with http:// or https://.');
+      return;
+    }
+    setFormError('');
 
     const res = scheduleMeeting({
       title: title.trim(),
       date,
       time,
-      venue: venue.trim() || 'Chama Boardroom',
+      venue: venue.trim(),
       isVirtual,
       virtualLink: isVirtual ? virtualLink.trim() : undefined,
-      agendaItems: agendaItems.filter(item => item.trim().length > 0),
+      agendaItems: [...agendaItems, ...(newAgendaInput.trim() ? [newAgendaInput.trim()] : [])].filter(item => item.trim().length > 0),
     });
 
     if (res.success) {
       setSelectedMeetingId(res.meetingId);
+      setSelectedDate(date);
+      setFilterStatus('all');
+      const [year, month] = date.split('-').map(Number);
+      setCalendarMonth(new Date(year, month - 1, 1));
       setIsScheduleModalOpen(false);
       setTitle('');
+      setNewAgendaInput('');
       setFeedbackMsg(res.message);
       setTimeout(() => setFeedbackMsg(''), 4500);
     }
@@ -300,17 +322,32 @@ export const MeetingScheduler: React.FC = () => {
           <span>{feedbackMsg}</span>
         </div>
       )}
+      {dbSyncError && (
+        <div role="alert" className="p-3.5 bg-rose-50 border border-rose-300 rounded-xl text-xs font-semibold text-rose-900">
+          {dbSyncError} <button type="button" onClick={retryDbSync} className="underline">Retry saving</button>
+        </div>
+      )}
 
       {/* Main Split Layout: Meeting Calendar List (Left) + Selected Meeting Details & Attendance (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* Left Column: Scheduled Meetings Directory (4 Cols) */}
         <div className="lg:col-span-4 space-y-4">
+          <MeetingCalendar
+            meetings={meetings}
+            month={calendarMonth}
+            selectedDate={selectedDate}
+            onMonthChange={setCalendarMonth}
+            onDateSelect={day => {
+              setSelectedDate(day);
+              setFilterStatus('all');
+            }}
+          />
           <div className="bg-white rounded-2xl border border-emerald-100 shadow-xs p-4">
             <div className="flex items-center justify-between pb-3 border-b border-emerald-100">
               <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
                 <Clock className="w-4 h-4 text-emerald-600" />
-                <span>Meeting Calendar ({meetings.length})</span>
+                <span>{selectedDate ? `Meetings on ${selectedDate}` : `Meetings (${meetings.length})`}</span>
               </div>
               
               {/* Filter Tabs */}
@@ -319,7 +356,7 @@ export const MeetingScheduler: React.FC = () => {
                   <button
                     key={tab}
                     type="button"
-                    onClick={() => setFilterStatus(tab)}
+                    onClick={() => { setSelectedDate(null); setFilterStatus(tab); }}
                     className={`px-2 py-1 rounded-md font-bold capitalize transition ${
                       filterStatus === tab
                         ? 'bg-emerald-700 text-white shadow-2xs'
@@ -406,7 +443,7 @@ export const MeetingScheduler: React.FC = () => {
               {filteredMeetings.length === 0 && (
                 <div className="py-12 text-center text-slate-500 space-y-3">
                   <Calendar className="w-8 h-8 text-slate-300 mx-auto" />
-                  <p className="text-xs">No meetings found in this status category.</p>
+                  <p className="text-xs">{selectedDate ? 'No upcoming meetings on this date.' : 'No meetings found in this status category.'}</p>
                   {canManage && (
                     <button
                       type="button"
@@ -688,7 +725,7 @@ export const MeetingScheduler: React.FC = () => {
 
       {/* Schedule Meeting Modal */}
       {isScheduleModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+        <div role="dialog" aria-modal="true" aria-labelledby="schedule-meeting-title" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-slate-100 max-h-[92vh] flex flex-col">
             
             {/* Modal Header with Light Green Accent */}
@@ -698,7 +735,7 @@ export const MeetingScheduler: React.FC = () => {
                   <Calendar className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-black text-base sm:text-lg text-white">Schedule New Chama Meeting</h3>
+                  <h3 id="schedule-meeting-title" className="font-black text-base sm:text-lg text-white">Schedule New Chama Meeting</h3>
                   <p className="text-xs text-emerald-200/80">Configure date, location, virtual links & constitutional agenda</p>
                 </div>
               </div>
@@ -713,11 +750,13 @@ export const MeetingScheduler: React.FC = () => {
 
             {/* Modal Form */}
             <form onSubmit={handleCreateMeeting} className="p-5 sm:p-6 overflow-y-auto space-y-4">
+              {formError && <p role="alert" className="text-xs font-semibold text-rose-700">{formError}</p>}
               <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                <label htmlFor="meeting-title" className="text-xs font-semibold text-slate-700 block mb-1">
                   Meeting Title / Assembly Theme *
                 </label>
                 <input
+                  id="meeting-title"
                   type="text"
                   required
                   placeholder="e.g. Monthly Table Banking Assembly & Savings Reconciliation"
@@ -729,10 +768,11 @@ export const MeetingScheduler: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  <label htmlFor="meeting-date" className="text-xs font-semibold text-slate-700 block mb-1">
                     Meeting Date *
                   </label>
                   <input
+                    id="meeting-date"
                     type="date"
                     required
                     value={date}
@@ -742,10 +782,11 @@ export const MeetingScheduler: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  <label htmlFor="meeting-time" className="text-xs font-semibold text-slate-700 block mb-1">
                     Meeting Time *
                   </label>
                   <input
+                    id="meeting-time"
                     type="time"
                     required
                     value={time}
@@ -756,11 +797,13 @@ export const MeetingScheduler: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">
-                  Physical Venue / Meeting Location
+                <label htmlFor="meeting-venue" className="text-xs font-semibold text-slate-700 block mb-1">
+                  Physical Venue / Meeting Location *
                 </label>
                 <input
+                  id="meeting-venue"
                   type="text"
+                  required
                   placeholder="e.g. Chama Community Center, St. Jude Hall, or Host Residence"
                   value={venue}
                   onChange={(e) => setVenue(e.target.value)}
@@ -780,6 +823,7 @@ export const MeetingScheduler: React.FC = () => {
                   </div>
                   <input
                     type="checkbox"
+                    aria-label="Enable virtual attendance"
                     checked={isVirtual}
                     onChange={(e) => setIsVirtual(e.target.checked)}
                     className="w-4 h-4 text-emerald-600 rounded-md focus:ring-emerald-500 cursor-pointer"
@@ -788,11 +832,13 @@ export const MeetingScheduler: React.FC = () => {
 
                 {isVirtual && (
                   <div>
-                    <label className="text-[11px] font-semibold text-emerald-900 block mb-1">
+                    <label htmlFor="meeting-link" className="text-[11px] font-semibold text-emerald-900 block mb-1">
                       Virtual Video Call Link
                     </label>
                     <input
+                      id="meeting-link"
                       type="url"
+                      required
                       placeholder="https://meet.google.com/xyz-wxyz-abc"
                       value={virtualLink}
                       onChange={(e) => setVirtualLink(e.target.value)}

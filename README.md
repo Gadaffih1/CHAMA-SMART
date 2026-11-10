@@ -30,6 +30,15 @@ random one is generated and printed at startup.
 - Serve the app over HTTPS in production so the session cookie is marked
   `Secure` (behind a proxy, forward `X-Forwarded-Proto`).
 
+## Meeting scheduling
+
+Chama officials can use **Meeting Scheduler** in the Officials Portal to schedule
+meetings with a date, time, venue, agenda and optional virtual link. The
+monthly calendar highlights upcoming meetings; select a date to see its
+sessions, or use the status filters to browse all sessions. Meetings are stored
+with their Chama. If saving fails, the scheduler shows an error and a retry
+option; keep the page open until the retry succeeds.
+
 The app uses an embedded SQLite database and does not require a MySQL or
 PostgreSQL sidecar. Configure deployment health checks to probe
 `GET /api/health`; it returns `200` when the database is queryable and `503`
